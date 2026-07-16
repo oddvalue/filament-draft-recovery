@@ -47,6 +47,8 @@ jobs:
 
       - name: Upload coverage badge
         uses: gaelgirodon/ci-badges-action@07a65145ff9feb271f426865f940977a94578ad4 # v1.5.0
+        # Non-fatal so a missing GIST_TOKEN secret never fails the test run.
+        continue-on-error: true
         if: github.ref == 'refs/heads/main' && matrix.php == 8.4
         with:
           gist-id: 9dd8e508cb2433728d42a258193770eb
