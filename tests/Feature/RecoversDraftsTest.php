@@ -183,7 +183,7 @@ describe('server mode (laravel-drafts store)', function (): void {
         config()->set('filament-draft-recovery.store', 'laravel-drafts');
     });
 
-    it('stores drafts as draft revisions of the edited record', function (): void {
+    it('stores drafts as a non-current auto draft of the edited record', function (): void {
         actingAsTestUser();
 
         $post = Post::query()->create(['title' => 'Published title']);
@@ -192,18 +192,20 @@ describe('server mode (laravel-drafts store)', function (): void {
             ->call('storeRecoverableDraft', ['title' => 'Drafted title']);
 
         $post->refresh();
+        $autoDraft = DraftRecovery::driver()->resolveAutoDraft($post);
 
         expect($post->title)->toBe('Published title')
-            ->and($post->drafts()->first()?->title)->toBe('Drafted title');
+            ->and($post->is_current)->toBeTrue()
+            ->and($autoDraft?->title)->toBe('Drafted title')
+            ->and($autoDraft->is_current)->toBeFalse();
     });
 
-    it('offers recovery and restores the record draft into the form', function (): void {
+    it('offers recovery and restores the auto draft into the form', function (): void {
         actingAsTestUser();
 
         $post = Post::query()->create(['title' => 'Published title']);
-        (clone $post)->updateAsDraft(['title' => 'Drafted title']);
-
         $key = 'filament-draft:' . auth()->id() . ":testing:posts:edit:{$post->getKey()}";
+        DraftRecovery::driver()->put(pageContext($key, $post), ['title' => 'Drafted title']);
 
         livewire(EditPost::class, ['record' => $post->getKey()])
             ->assertNotified()
@@ -211,11 +213,12 @@ describe('server mode (laravel-drafts store)', function (): void {
             ->assertSchemaStateSet(['title' => 'Drafted title']);
     });
 
-    it('clears the record draft after a successful save', function (): void {
+    it('clears the auto draft after a successful save', function (): void {
         actingAsTestUser();
 
         $post = Post::query()->create(['title' => 'Published title']);
-        (clone $post)->updateAsDraft(['title' => 'Drafted title']);
+        $key = 'filament-draft:' . auth()->id() . ":testing:posts:edit:{$post->getKey()}";
+        DraftRecovery::driver()->put(pageContext($key, $post), ['title' => 'Drafted title']);
 
         livewire(EditPost::class, ['record' => $post->getKey()])
             ->fillForm(['title' => 'Final title'])
@@ -225,7 +228,7 @@ describe('server mode (laravel-drafts store)', function (): void {
 
         $post->refresh();
 
-        expect($post->drafts()->count())->toBe(0)
+        expect(DraftRecovery::driver()->resolveAutoDraft($post))->toBeNull()
             ->and($post->title)->toBe('Final title')
             ->and($post->is_current)->toBeTrue();
     });

@@ -16,20 +16,26 @@ use RuntimeException;
  * Stores drafts through oddvalue/laravel-drafts, directly on the model being
  * edited — the page's model must use the HasDrafts trait.
  *
- * - Edit pages: each auto-save becomes a draft revision of the record
- *   (updateAsDraft), so the record's own draft/revision history holds the
- *   recoverable state.
+ * - Edit pages: auto-saves upsert a single "auto" draft row per record — an
+ *   unpublished revision that is NOT flagged as current (the record keeps its
+ *   is_current flag and any intentional current draft is untouched). It reads
+ *   as the record's latest partial draft and is updated in place on every
+ *   auto-save, so no revision churn.
  * - Create pages: the first auto-save creates an unpublished draft record
  *   (createDraft) which subsequent auto-saves update in place; recovery finds
  *   the user's latest unpublished draft of the model.
+ *
+ * The auto draft is recognised by the flag combination unpublished +
+ * not-current + null published_at (ordinary revision copies of a published
+ * record retain its published_at).
  *
  * Saves are best-effort: a payload that violates database constraints (e.g.
  * required columns not yet filled in) is skipped and retried on the next
  * auto-save.
  *
- * Note: clearing drafts deletes the record's unpublished revisions (edit) or
- * the user's unpublished draft record (create) via query deletes, so the
- * published record and its published revision history are never touched.
+ * Note: clearing drafts deletes only the auto draft row (edit) or the user's
+ * unpublished draft record (create) via query deletes, so the published
+ * record, intentional drafts, and revision history are never touched.
  */
 class LaravelDraftsStore implements DraftStore
 {
@@ -82,9 +88,7 @@ class LaravelDraftsStore implements DraftStore
 
         try {
             if ($context->record) {
-                // Fill the clone, not the page's record instance — saveAsDraft
-                // persists a replica, leaving the published row untouched.
-                (clone $context->record)->updateAsDraft($attributes);
+                $this->upsertAutoDraft($context->record, $attributes);
 
                 return;
             }
@@ -107,16 +111,14 @@ class LaravelDraftsStore implements DraftStore
         $this->assertDraftableModel($context);
 
         if ($context->record) {
-            // Query deletes on purpose: Eloquent deletes on a HasDrafts model
-            // cascade to every revision sharing the uuid, including the
-            // published row. Only the current draft is removed — unpublished
-            // revision copies created by ordinary saves are legitimate
-            // history — and the record row takes the "current" flag back.
-            $context->record->drafts()->delete();
+            $autoDraft = $this->resolveAutoDraft($context->record);
 
-            $context->record->newModelQuery()
-                ->whereKey($context->record->getKey())
-                ->update([$context->record->getIsCurrentColumn() => true]);
+            if ($autoDraft) {
+                // Query delete on purpose: Eloquent deletes on a HasDrafts
+                // model cascade to every revision sharing the uuid, including
+                // the published row.
+                $autoDraft->newModelQuery()->whereKey($autoDraft->getKey())->delete();
+            }
 
             return;
         }
@@ -131,10 +133,49 @@ class LaravelDraftsStore implements DraftStore
     protected function resolveDraft(DraftContext $context): ?Model
     {
         if ($context->record) {
-            return $context->record->drafts()->latest('updated_at')->first();
+            return $this->resolveAutoDraft($context->record);
         }
 
         return $this->resolveCreatePageDraft($context);
+    }
+
+    /**
+     * The record's auto draft: an unpublished, not-current revision with a
+     * null published_at. Saved quietly so laravel-drafts' model events never
+     * promote it to the current draft or spawn revisions.
+     */
+    public function resolveAutoDraft(Model $record): ?Model
+    {
+        return $record->newQuery()
+            ->withDrafts()
+            ->where($record->getUuidColumn(), $record->{$record->getUuidColumn()})
+            ->where($record->getIsPublishedColumn(), false)
+            ->where($record->getIsCurrentColumn(), false)
+            ->whereNull($record->getPublishedAtColumn())
+            ->latest('updated_at')
+            ->first();
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    protected function upsertAutoDraft(Model $record, array $attributes): void
+    {
+        if ($existing = $this->resolveAutoDraft($record)) {
+            $existing->forceFill($attributes);
+            $existing->saveQuietly();
+
+            return;
+        }
+
+        $autoDraft = $record->replicate();
+        $autoDraft->forceFill([
+            ...$attributes,
+            $record->getIsCurrentColumn() => false,
+            $record->getIsPublishedColumn() => false,
+            $record->getPublishedAtColumn() => null,
+        ]);
+        $autoDraft->saveQuietly();
     }
 
     /**

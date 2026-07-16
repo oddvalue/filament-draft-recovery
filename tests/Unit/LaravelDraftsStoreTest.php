@@ -36,20 +36,54 @@ it('rejects models that do not use HasDrafts', function (): void {
 })->throws(RuntimeException::class, 'HasDrafts');
 
 describe('edit pages', function (): void {
-    it('stores the draft as a draft revision of the record', function (): void {
+    it('stores the draft as a non-current auto draft of the record', function (): void {
         $post = Post::query()->create(['title' => 'Published title']);
         $store = new LaravelDraftsStore;
 
         $store->put(editContext($post), ['title' => 'Drafted title']);
 
         $post->refresh();
+        $autoDraft = $store->resolveAutoDraft($post);
 
         expect($post->title)->toBe('Published title')
-            ->and($post->drafts()->count())->toBe(1)
-            ->and($post->drafts()->first()->title)->toBe('Drafted title');
+            ->and($post->is_current)->toBeTrue()
+            ->and($autoDraft)->not->toBeNull()
+            ->and($autoDraft->title)->toBe('Drafted title')
+            ->and($autoDraft->is_current)->toBeFalse()
+            ->and($autoDraft->is_published)->toBeFalse()
+            // The auto draft must not read as the record's current draft.
+            ->and($post->drafts()->count())->toBe(0);
     });
 
-    it('retrieves the draft payload from the record draft', function (): void {
+    it('upserts the same auto draft row on subsequent saves', function (): void {
+        $post = Post::query()->create(['title' => 'Published title']);
+        $store = new LaravelDraftsStore;
+
+        $store->put(editContext($post), ['title' => 'First']);
+        $firstId = $store->resolveAutoDraft($post)->getKey();
+
+        $store->put(editContext($post), ['title' => 'Second']);
+
+        expect($store->resolveAutoDraft($post)->getKey())->toBe($firstId)
+            ->and($store->get(editContext($post))->data['title'])->toBe('Second')
+            ->and(Post::query()->withDrafts()->where('uuid', $post->uuid)->count())->toBe(2);
+    });
+
+    it('leaves an intentional current draft untouched', function (): void {
+        $post = Post::query()->create(['title' => 'Published title']);
+        (clone $post)->updateAsDraft(['title' => 'Manual draft']);
+        $store = new LaravelDraftsStore;
+
+        $store->put(editContext($post), ['title' => 'Auto draft']);
+        $store->forget(editContext($post));
+
+        $post->refresh();
+
+        expect($post->drafts()->first()?->title)->toBe('Manual draft')
+            ->and($store->resolveAutoDraft($post))->toBeNull();
+    });
+
+    it('retrieves the draft payload from the auto draft', function (): void {
         $post = Post::query()->create(['title' => 'Published title', 'body' => 'Body']);
         $store = new LaravelDraftsStore;
 
@@ -71,15 +105,18 @@ describe('edit pages', function (): void {
         expect($store->get(editContext($post))->data['title'])->toBe('Drafted title');
     });
 
-    it('forgets draft revisions without touching the published record', function (): void {
+    it('forgets the auto draft without touching the published record', function (): void {
         $post = Post::query()->create(['title' => 'Published title']);
         $store = new LaravelDraftsStore;
 
         $store->put(editContext($post), ['title' => 'Drafted title']);
         $store->forget(editContext($post));
 
+        $post->refresh();
+
         expect($store->get(editContext($post)))->toBeNull()
-            ->and(Post::query()->whereKey($post->getKey())->exists())->toBeTrue();
+            ->and(Post::query()->whereKey($post->getKey())->exists())->toBeTrue()
+            ->and($post->is_current)->toBeTrue();
     });
 
     it('returns null when the record has no draft', function (): void {

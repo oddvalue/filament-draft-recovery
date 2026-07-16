@@ -77,9 +77,9 @@ composer require oddvalue/laravel-drafts
 
 Drafts are stored **directly on the model being edited**, which must use laravel-drafts' `HasDrafts` trait (and have the drafts columns on its table — see the laravel-drafts docs):
 
-- **Edit pages**: each auto-save calls `updateAsDraft()` on the record, so the recoverable state lives in the record's own draft (`$record->draft`), visible to anything else using laravel-drafts.
+- **Edit pages**: auto-saves upsert a single **auto draft** per record — an unpublished revision that is *not* flagged as current, so the record keeps `is_current` and any intentional draft (`$record->draft`) is untouched. It reads as the record's latest partial draft (`LaravelDraftsStore::resolveAutoDraft($record)`), is updated in place on every auto-save (no revision churn), and is recognised by the flag combination unpublished + not-current + null `published_at`.
 - **Create pages**: the first auto-save creates an unpublished record via `createDraft()`; later auto-saves update it in place. Recovery finds the user's latest unpublished draft of the model (scoped by publisher).
-- **Clearing** (successful save / discard) deletes the record's *current draft* via query deletes — published rows and the unpublished revision copies laravel-drafts keeps as history are never touched — and reinstates the `is_current` flag on the record.
+- **Clearing** (successful save / discard) deletes only the auto draft row via a query delete — published rows, intentional drafts, and the revision history laravel-drafts keeps are never touched.
 - Saves are **best-effort**: payloads that violate column constraints (required fields not yet filled) are skipped and retried on the next auto-save.
 - Only real table columns are persisted; form-only keys are dropped. Repeater/relation state is not covered by this driver — use `database` if you need the full form payload.
 
