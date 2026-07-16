@@ -60,6 +60,7 @@ describe('edit pages', function (): void {
         $store = new LaravelDraftsStore;
 
         $store->put(editContext($post), ['title' => 'First']);
+
         $firstId = $store->resolveAutoDraft($post)->getKey();
 
         $store->put(editContext($post), ['title' => 'Second']);

@@ -3,6 +3,7 @@
 namespace Oddvalue\FilamentDraftRecovery;
 
 use Illuminate\Support\Manager;
+use Oddvalue\FilamentDraftRecovery\Models\RecoverableDraft;
 use Oddvalue\FilamentDraftRecovery\Stores\DatabaseStore;
 use Oddvalue\FilamentDraftRecovery\Stores\LaravelDraftsStore;
 use Oddvalue\FilamentDraftRecovery\Stores\LocalStorageStore;
@@ -14,7 +15,9 @@ class DraftStoreManager extends Manager
 {
     public function getDefaultDriver(): string
     {
-        return $this->config->get('filament-draft-recovery.store', 'local-storage');
+        $store = $this->config->get('filament-draft-recovery.store', 'local-storage');
+
+        return is_string($store) ? $store : 'local-storage';
     }
 
     public function createLocalStorageDriver(): LocalStorageStore
@@ -24,16 +27,26 @@ class DraftStoreManager extends Manager
 
     public function createDatabaseDriver(): DatabaseStore
     {
+        /** @var class-string<RecoverableDraft>|null $modelClass */
+        $modelClass = $this->config->get('filament-draft-recovery.database.model');
+
         return new DatabaseStore(
-            modelClass: $this->config->get('filament-draft-recovery.database.model'),
-            expiryDays: (int) $this->config->get('filament-draft-recovery.expiry_days', 7),
+            modelClass: $modelClass,
+            expiryDays: $this->expiryDays(),
         );
     }
 
     public function createLaravelDraftsDriver(): LaravelDraftsStore
     {
         return new LaravelDraftsStore(
-            expiryDays: (int) $this->config->get('filament-draft-recovery.expiry_days', 7),
+            expiryDays: $this->expiryDays(),
         );
+    }
+
+    protected function expiryDays(): int
+    {
+        $expiryDays = $this->config->get('filament-draft-recovery.expiry_days', 7);
+
+        return is_numeric($expiryDays) ? (int) $expiryDays : 7;
     }
 }

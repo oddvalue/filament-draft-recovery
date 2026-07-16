@@ -22,7 +22,7 @@ class FilamentDraftRecoveryServiceProvider extends PackageServiceProvider
             ->hasViews(static::$viewNamespace)
             ->hasTranslations()
             ->hasMigrations($this->getMigrations())
-            ->hasInstallCommand(function (InstallCommand $command) {
+            ->hasInstallCommand(function (InstallCommand $command): void {
                 $command
                     ->publishConfigFile()
                     ->publishMigrations()
@@ -33,7 +33,7 @@ class FilamentDraftRecoveryServiceProvider extends PackageServiceProvider
 
     public function packageRegistered(): void
     {
-        $this->app->singleton(DraftStoreManager::class, fn ($app) => new DraftStoreManager($app));
+        $this->app->singleton(DraftStoreManager::class, fn (): DraftStoreManager => new DraftStoreManager($this->app));
     }
 
     public function packageBooted(): void
@@ -44,7 +44,7 @@ class FilamentDraftRecoveryServiceProvider extends PackageServiceProvider
         );
     }
 
-    protected function getAssetPackageName(): ?string
+    protected function getAssetPackageName(): string
     {
         return 'oddvalue/filament-draft-recovery';
     }

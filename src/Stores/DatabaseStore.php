@@ -11,13 +11,18 @@ use Oddvalue\FilamentDraftRecovery\Models\RecoverableDraft;
 class DatabaseStore implements DraftStore
 {
     /**
+     * @var class-string<RecoverableDraft>
+     */
+    protected string $modelClass;
+
+    /**
      * @param  class-string<RecoverableDraft>|null  $modelClass
      */
     public function __construct(
-        protected ?string $modelClass = null,
+        ?string $modelClass = null,
         protected int $expiryDays = 7,
     ) {
-        $this->modelClass ??= RecoverableDraft::class;
+        $this->modelClass = $modelClass ?? RecoverableDraft::class;
     }
 
     public function isClientSide(): bool
@@ -63,6 +68,6 @@ class DatabaseStore implements DraftStore
      */
     protected function query(): Builder
     {
-        return ($this->modelClass)::query();
+        return $this->modelClass::query();
     }
 }

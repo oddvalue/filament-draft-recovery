@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Oddvalue\FilamentDraftRecovery\Data;
 
 use Carbon\CarbonInterface;

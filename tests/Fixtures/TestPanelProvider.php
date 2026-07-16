@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Oddvalue\FilamentDraftRecovery\Tests\Fixtures;
 
 use Filament\Panel;

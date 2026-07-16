@@ -2,18 +2,27 @@ includes:
     - phpstan-baseline.neon
 
 parameters:
-    level: 4
+    level: 10
     paths:
         - src
         - config
         - database
     tmpDir: build/phpstan
+    checkOctaneCompatibility: true
+    checkModelProperties: true
     ignoreErrors:
         # The trait is consumed by host applications, not by package code.
         - identifier: trait.unused
+        # The package config file lives in the package's own config directory,
+        # which larastan cannot see relative to the (testbench) base path.
+        -
+            message: "#Called 'env' outside of the config directory#"
+            path: config/filament-draft-recovery.php
         # The laravel-drafts store works with arbitrary host models whose
-        # HasDrafts methods only exist at runtime (asserted in
-        # assertDraftableModel()).
+        # HasDrafts methods and scopes only exist at runtime (asserted in
+        # assertDraftableModel()) — the unknown-method ignores below make the
+        # builder chains resolve to mixed, cascading into these identifiers.
+        # Same approach as laravel-drafts' own phpstan setup.
         -
             identifier: method.notFound
             path: src/Stores/LaravelDraftsStore.php
@@ -25,4 +34,19 @@ parameters:
             path: src/Stores/LaravelDraftsStore.php
         -
             identifier: varTag.unresolvableType
+            path: src/Stores/LaravelDraftsStore.php
+        -
+            identifier: method.nonObject
+            path: src/Stores/LaravelDraftsStore.php
+        -
+            identifier: argument.type
+            path: src/Stores/LaravelDraftsStore.php
+        -
+            identifier: return.type
+            path: src/Stores/LaravelDraftsStore.php
+        -
+            identifier: array.invalidKey
+            path: src/Stores/LaravelDraftsStore.php
+        -
+            identifier: offsetAccess.nonOffsetAccessible
             path: src/Stores/LaravelDraftsStore.php

@@ -18,7 +18,7 @@ function pageContext(string $key, ?Model $record = null): DraftContext
     return new DraftContext(
         key: $key,
         modelClass: Post::class,
-        operation: $record ? 'edit' : 'create',
+        operation: $record instanceof Model ? 'edit' : 'create',
         record: $record,
         userId: auth()->id(),
     );
@@ -30,7 +30,7 @@ it('injects the draft recovery component in client mode with a create page key',
     livewire(CreatePost::class)
         ->assertOk()
         ->assertSeeHtml('draftRecovery(')
-        ->assertSeeHtml("filament-draft:{$user->id}:testing:posts:create")
+        ->assertSeeHtml(sprintf('filament-draft:%s:testing:posts:create', $user->id))
         ->assertSeeHtml('\u0022mode\u0022:\u0022client\u0022');
 });
 
@@ -41,7 +41,7 @@ it('scopes the edit page key to the record', function (): void {
 
     livewire(EditPost::class, ['record' => $post->getKey()])
         ->assertOk()
-        ->assertSeeHtml("filament-draft:{$user->id}:testing:posts:edit:{$post->getKey()}");
+        ->assertSeeHtml(sprintf('filament-draft:%s:testing:posts:edit:%s', $user->id, $post->getKey()));
 });
 
 it('does not persist server drafts when the store is client side', function (): void {
@@ -56,7 +56,7 @@ it('does not persist server drafts when the store is client side', function (): 
 it('ignores restore and discard events when the store is client side', function (): void {
     $user = actingAsTestUser();
 
-    $key = "filament-draft:{$user->id}:testing:posts:create";
+    $key = sprintf('filament-draft:%s:testing:posts:create', $user->id);
 
     livewire(CreatePost::class)
         ->dispatch('draft-recovery-restore', key: $key)
@@ -123,7 +123,7 @@ describe('server mode (database store)', function (): void {
         livewire(CreatePost::class)
             ->call('storeRecoverableDraft', ['title' => 'Drafted title']);
 
-        $draft = DraftRecovery::driver()->get(pageContext("filament-draft:{$user->id}:testing:posts:create"));
+        $draft = DraftRecovery::driver()->get(pageContext(sprintf('filament-draft:%s:testing:posts:create', $user->id)));
 
         expect($draft)->not->toBeNull()
             ->and($draft->data['title'])->toBe('Drafted title');
@@ -133,7 +133,7 @@ describe('server mode (database store)', function (): void {
         $user = actingAsTestUser();
 
         DraftRecovery::driver()->put(
-            pageContext("filament-draft:{$user->id}:testing:posts:create"),
+            pageContext(sprintf('filament-draft:%s:testing:posts:create', $user->id)),
             ['title' => 'Drafted title'],
         );
 
@@ -151,7 +151,7 @@ describe('server mode (database store)', function (): void {
     it('restores a draft into the form', function (): void {
         $user = actingAsTestUser();
 
-        $key = "filament-draft:{$user->id}:testing:posts:create";
+        $key = sprintf('filament-draft:%s:testing:posts:create', $user->id);
         DraftRecovery::driver()->put(pageContext($key), ['title' => 'Drafted title']);
 
         livewire(CreatePost::class)
@@ -163,7 +163,7 @@ describe('server mode (database store)', function (): void {
         $user = actingAsTestUser();
 
         DraftRecovery::driver()->put(
-            pageContext("filament-draft:{$user->id}:testing:posts:create"),
+            pageContext(sprintf('filament-draft:%s:testing:posts:create', $user->id)),
             ['title' => 'Drafted title'],
         );
 
@@ -176,14 +176,14 @@ describe('server mode (database store)', function (): void {
         $user = actingAsTestUser();
 
         livewire(CreatePost::class)
-            ->dispatch('draft-recovery-restore', key: "filament-draft:{$user->id}:testing:posts:create")
+            ->dispatch('draft-recovery-restore', key: sprintf('filament-draft:%s:testing:posts:create', $user->id))
             ->assertSchemaStateSet(['title' => null]);
     });
 
     it('ignores discard events for other keys', function (): void {
         $user = actingAsTestUser();
 
-        $key = "filament-draft:{$user->id}:testing:posts:create";
+        $key = sprintf('filament-draft:%s:testing:posts:create', $user->id);
         DraftRecovery::driver()->put(pageContext($key), ['title' => 'Drafted title']);
 
         livewire(CreatePost::class)
@@ -195,7 +195,7 @@ describe('server mode (database store)', function (): void {
     it('discards a draft', function (): void {
         $user = actingAsTestUser();
 
-        $key = "filament-draft:{$user->id}:testing:posts:create";
+        $key = sprintf('filament-draft:%s:testing:posts:create', $user->id);
         DraftRecovery::driver()->put(pageContext($key), ['title' => 'Drafted title']);
 
         livewire(CreatePost::class)
@@ -207,7 +207,7 @@ describe('server mode (database store)', function (): void {
     it('clears the stored draft after a successful create', function (): void {
         $user = actingAsTestUser();
 
-        $key = "filament-draft:{$user->id}:testing:posts:create";
+        $key = sprintf('filament-draft:%s:testing:posts:create', $user->id);
         DraftRecovery::driver()->put(pageContext($key), ['title' => 'Drafted title']);
 
         livewire(CreatePost::class)
@@ -224,7 +224,7 @@ describe('server mode (database store)', function (): void {
 
         $post = Post::query()->create(['title' => 'Hello']);
 
-        $key = "filament-draft:{$user->id}:testing:posts:edit:{$post->getKey()}";
+        $key = sprintf('filament-draft:%s:testing:posts:edit:%s', $user->id, $post->getKey());
         DraftRecovery::driver()->put(pageContext($key, $post), ['title' => 'Drafted title']);
 
         livewire(EditPost::class, ['record' => $post->getKey()])
@@ -241,7 +241,7 @@ describe('server mode (database store)', function (): void {
 
         $post = Post::query()->create(['title' => 'Hello']);
 
-        $key = "filament-draft:{$user->id}:testing:posts:edit:{$post->getKey()}";
+        $key = sprintf('filament-draft:%s:testing:posts:edit:%s', $user->id, $post->getKey());
         DraftRecovery::driver()->put(pageContext($key, $post), ['title' => 'Hello', 'body' => null]);
 
         livewire(EditPost::class, ['record' => $post->getKey()])
@@ -277,7 +277,7 @@ describe('server mode (laravel-drafts store)', function (): void {
         actingAsTestUser();
 
         $post = Post::query()->create(['title' => 'Published title']);
-        $key = 'filament-draft:' . auth()->id() . ":testing:posts:edit:{$post->getKey()}";
+        $key = 'filament-draft:' . auth()->id() . (':testing:posts:edit:' . $post->getKey());
         DraftRecovery::driver()->put(pageContext($key, $post), ['title' => 'Drafted title']);
 
         livewire(EditPost::class, ['record' => $post->getKey()])
@@ -290,7 +290,7 @@ describe('server mode (laravel-drafts store)', function (): void {
         actingAsTestUser();
 
         $post = Post::query()->create(['title' => 'Published title']);
-        $key = 'filament-draft:' . auth()->id() . ":testing:posts:edit:{$post->getKey()}";
+        $key = 'filament-draft:' . auth()->id() . (':testing:posts:edit:' . $post->getKey());
         DraftRecovery::driver()->put(pageContext($key, $post), ['title' => 'Drafted title']);
 
         livewire(EditPost::class, ['record' => $post->getKey()])

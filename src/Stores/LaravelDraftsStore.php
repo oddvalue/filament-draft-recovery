@@ -64,7 +64,7 @@ class LaravelDraftsStore implements DraftStore
 
         $draft = $this->resolveDraft($context);
 
-        if (! $draft) {
+        if (! $draft instanceof Model) {
             return null;
         }
 
@@ -91,13 +91,13 @@ class LaravelDraftsStore implements DraftStore
         }
 
         try {
-            if ($context->record) {
+            if ($context->record instanceof Model) {
                 $this->upsertAutoDraft($context->record, $attributes);
 
                 return;
             }
 
-            if ($existing = $this->resolveCreatePageDraft($context)) {
+            if (($existing = $this->resolveCreatePageDraft($context)) instanceof Model) {
                 $existing->withoutRevision()->fill($attributes)->save();
 
                 return;
@@ -114,10 +114,10 @@ class LaravelDraftsStore implements DraftStore
     {
         $this->assertDraftableModel($context);
 
-        if ($context->record) {
+        if ($context->record instanceof Model) {
             $autoDraft = $this->resolveAutoDraft($context->record);
 
-            if ($autoDraft) {
+            if ($autoDraft instanceof Model) {
                 // Query delete on purpose: Eloquent deletes on a HasDrafts
                 // model cascade to every revision sharing the uuid, including
                 // the published row.
@@ -129,14 +129,14 @@ class LaravelDraftsStore implements DraftStore
 
         $draft = $this->resolveCreatePageDraft($context);
 
-        if ($draft) {
+        if ($draft instanceof Model) {
             $draft->newModelQuery()->whereKey($draft->getKey())->delete();
         }
     }
 
     protected function resolveDraft(DraftContext $context): ?Model
     {
-        if ($context->record) {
+        if ($context->record instanceof Model) {
             return $this->resolveAutoDraft($context->record);
         }
 
@@ -165,7 +165,7 @@ class LaravelDraftsStore implements DraftStore
      */
     protected function upsertAutoDraft(Model $record, array $attributes): void
     {
-        if ($existing = $this->resolveAutoDraft($record)) {
+        if (($existing = $this->resolveAutoDraft($record)) instanceof Model) {
             $existing->forceFill($attributes);
             $existing->saveQuietly();
 
@@ -262,7 +262,7 @@ class LaravelDraftsStore implements DraftStore
     {
         if (! in_array(HasDrafts::class, class_uses_recursive($context->modelClass))) {
             throw new RuntimeException(
-                "The laravel-drafts draft store requires [{$context->modelClass}] to use the " . HasDrafts::class . ' trait.'
+                sprintf('The laravel-drafts draft store requires [%s] to use the ', $context->modelClass) . HasDrafts::class . ' trait.'
             );
         }
     }

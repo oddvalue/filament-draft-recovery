@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Oddvalue\FilamentDraftRecovery\Contracts;
 
 use Oddvalue\FilamentDraftRecovery\Data\DraftContext;

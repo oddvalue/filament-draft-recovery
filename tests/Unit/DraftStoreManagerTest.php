@@ -44,7 +44,7 @@ it('supports custom stores via extend', function (): void {
         public function forget(DraftContext $context): void {}
     };
 
-    DraftRecovery::extend('custom', fn () => $custom);
+    DraftRecovery::extend('custom', fn (): object => $custom);
 
     expect(DraftRecovery::driver('custom'))->toBe($custom);
 });

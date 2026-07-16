@@ -62,7 +62,7 @@ class TestCase extends Orchestra
         return $providers;
     }
 
-    public function getEnvironmentSetUp($app): void
+    protected function getEnvironmentSetUp($app): void
     {
         $app['config']->set('app.key', 'base64:' . base64_encode(random_bytes(32)));
 
@@ -90,7 +90,7 @@ class TestCase extends Orchestra
     protected function prepareDatabase(): void
     {
         if (! Schema::hasTable('users')) {
-            Schema::create('users', function (Blueprint $table) {
+            Schema::create('users', function (Blueprint $table): void {
                 $table->id();
                 $table->string('name');
                 $table->string('email')->unique();
@@ -100,7 +100,7 @@ class TestCase extends Orchestra
         }
 
         if (! Schema::hasTable('posts')) {
-            Schema::create('posts', function (Blueprint $table) {
+            Schema::create('posts', function (Blueprint $table): void {
                 $table->id();
                 $table->string('title');
                 $table->text('body')->nullable();
