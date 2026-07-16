@@ -1,0 +1,28 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+/**
+ * Only required when using the "laravel-drafts" store — adds the columns the
+ * oddvalue/laravel-drafts package needs for revision tracking.
+ */
+return new class extends Migration
+{
+    public function up(): void
+    {
+        if (! Schema::hasColumn('recoverable_drafts', 'is_current')) {
+            Schema::table('recoverable_drafts', function (Blueprint $table) {
+                $table->drafts();
+            });
+        }
+    }
+
+    public function down(): void
+    {
+        Schema::table('recoverable_drafts', function (Blueprint $table) {
+            $table->dropDrafts();
+        });
+    }
+};

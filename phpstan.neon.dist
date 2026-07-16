@@ -1,0 +1,17 @@
+includes:
+    - phpstan-baseline.neon
+
+parameters:
+    level: 4
+    paths:
+        - src
+        - config
+        - database
+    tmpDir: build/phpstan
+    ignoreErrors:
+        # The trait is consumed by host applications, not by package code.
+        - identifier: trait.unused
+        # laravel-drafts adds these scopes at runtime via the HasDrafts trait.
+        -
+            message: '#Call to an undefined method .*::withDrafts\(\)#'
+            path: src/Stores/LaravelDraftsStore.php
