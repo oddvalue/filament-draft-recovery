@@ -43,4 +43,11 @@ jobs:
           composer update --prefer-dist --no-interaction
 
       - name: Execute tests
-        run: vendor/bin/pest --ci --coverage --min=100
+        run: vendor/bin/pest --ci --coverage --min=100 --coverage-cobertura coverage.xml
+
+      - name: Upload coverage badge
+        uses: gaelgirodon/ci-badges-action@07a65145ff9feb271f426865f940977a94578ad4 # v1.5.0
+        if: github.ref == 'refs/heads/main' && matrix.php == 8.4
+        with:
+          gist-id: 9dd8e508cb2433728d42a258193770eb
+          token: ${{ secrets.GIST_TOKEN }}

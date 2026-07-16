@@ -6,6 +6,7 @@
 [![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/oddvalue/filament-draft-recovery/tests.yml?label=tests&style=flat-square)](https://github.com/oddvalue/filament-draft-recovery/actions?query=workflow%3Atests+branch%3Amain)
 [![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/oddvalue/filament-draft-recovery/fix-code-style.yml?label=code%20style&style=flat-square)](https://github.com/oddvalue/filament-draft-recovery/actions?query=workflow%3Afix-code-style+branch%3Amain)
 [![Total Downloads](https://img.shields.io/packagist/dt/oddvalue/filament-draft-recovery.svg?style=flat-square)](https://packagist.org/packages/oddvalue/filament-draft-recovery)
+![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddvalue/9dd8e508cb2433728d42a258193770eb/raw/filament-draft-recovery-cobertura-coverage.json)
 
 Auto-save draft & crash recovery for Filament v4 create/edit pages, with swappable storage drivers. 100% test coverage, enforced in CI.
 
