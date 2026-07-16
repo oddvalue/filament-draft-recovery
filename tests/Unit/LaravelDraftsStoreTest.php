@@ -186,6 +186,15 @@ describe('create pages', function (): void {
     });
 });
 
+it('skips saves whose payload has no draftable columns', function (): void {
+    $post = Post::query()->create(['title' => 'Published title']);
+    $store = new LaravelDraftsStore;
+
+    $store->put(editContext($post), ['not_a_column' => 'x']);
+
+    expect($store->resolveAutoDraft($post))->toBeNull();
+});
+
 it('ignores and prunes expired drafts', function (): void {
     $post = Post::query()->create(['title' => 'Published title']);
     $store = new LaravelDraftsStore(expiryDays: 7);

@@ -43,9 +43,13 @@ class LaravelDraftsStore implements DraftStore
         protected int $expiryDays = 7,
     ) {
         if (! trait_exists(HasDrafts::class)) {
+            // Unreachable when the suggested dependency is installed, as it
+            // always is in the test suite.
+            // @codeCoverageIgnoreStart
             throw new RuntimeException(
                 'The laravel-drafts draft store requires the oddvalue/laravel-drafts package. Install it with: composer require oddvalue/laravel-drafts'
             );
+            // @codeCoverageIgnoreEnd
         }
     }
 

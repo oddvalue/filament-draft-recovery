@@ -1,10 +1,14 @@
 <?php
 
+use Filament\Facades\Filament;
 use Illuminate\Database\Eloquent\Model;
 use Oddvalue\FilamentDraftRecovery\Data\DraftContext;
+use Oddvalue\FilamentDraftRecovery\DraftRecoveryPlugin;
 use Oddvalue\FilamentDraftRecovery\Facades\DraftRecovery;
+use Oddvalue\FilamentDraftRecovery\Models\RecoverableDraft;
 use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Models\Post;
 use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\Pages\CreatePost;
+use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\Pages\CreatePostWithPageStore;
 use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\Pages\EditPost;
 
 use function Pest\Livewire\livewire;
@@ -38,6 +42,55 @@ it('scopes the edit page key to the record', function (): void {
     livewire(EditPost::class, ['record' => $post->getKey()])
         ->assertOk()
         ->assertSeeHtml("filament-draft:{$user->id}:testing:posts:edit:{$post->getKey()}");
+});
+
+it('does not persist server drafts when the store is client side', function (): void {
+    actingAsTestUser();
+
+    livewire(CreatePost::class)
+        ->call('storeRecoverableDraft', ['title' => 'Ignored']);
+
+    expect(RecoverableDraft::query()->count())->toBe(0);
+});
+
+it('ignores restore and discard events when the store is client side', function (): void {
+    $user = actingAsTestUser();
+
+    $key = "filament-draft:{$user->id}:testing:posts:create";
+
+    livewire(CreatePost::class)
+        ->dispatch('draft-recovery-restore', key: $key)
+        ->dispatch('draft-recovery-discard', key: $key)
+        ->assertSchemaStateSet(['title' => null]);
+});
+
+it('uses the page level draft store override', function (): void {
+    actingAsTestUser();
+
+    livewire(CreatePostWithPageStore::class)
+        ->assertSeeHtml('\u0022mode\u0022:\u0022server\u0022');
+});
+
+it('uses the panel plugin draft store when registered', function (): void {
+    actingAsTestUser();
+
+    Filament::getPanel('testing')->plugin(
+        DraftRecoveryPlugin::make()->store('database')
+    );
+
+    livewire(CreatePost::class)
+        ->assertSeeHtml('\u0022mode\u0022:\u0022server\u0022');
+});
+
+it('falls back to the config store when the panel plugin sets none', function (): void {
+    actingAsTestUser();
+
+    Filament::getPanel('testing')->plugin(
+        DraftRecoveryPlugin::make()
+    );
+
+    livewire(CreatePost::class)
+        ->assertSeeHtml('\u0022mode\u0022:\u0022client\u0022');
 });
 
 it('dispatches a clear event after creating in client mode', function (): void {
@@ -117,6 +170,26 @@ describe('server mode (database store)', function (): void {
         livewire(CreatePost::class)
             ->dispatch('draft-recovery-restore', key: 'some-other-key')
             ->assertSchemaStateSet(['title' => null]);
+    });
+
+    it('ignores restore events when no draft exists', function (): void {
+        $user = actingAsTestUser();
+
+        livewire(CreatePost::class)
+            ->dispatch('draft-recovery-restore', key: "filament-draft:{$user->id}:testing:posts:create")
+            ->assertSchemaStateSet(['title' => null]);
+    });
+
+    it('ignores discard events for other keys', function (): void {
+        $user = actingAsTestUser();
+
+        $key = "filament-draft:{$user->id}:testing:posts:create";
+        DraftRecovery::driver()->put(pageContext($key), ['title' => 'Drafted title']);
+
+        livewire(CreatePost::class)
+            ->dispatch('draft-recovery-discard', key: 'some-other-key');
+
+        expect(DraftRecovery::driver()->get(pageContext($key)))->not->toBeNull();
     });
 
     it('discards a draft', function (): void {

@@ -59,6 +59,7 @@
         "lint": "pint",
         "refactor": "rector",
         "test": "pest",
+        "test:coverage": "pest --coverage --min=100",
         "test:lint": "pint --test",
         "test:refactor": "rector --dry-run"
     },

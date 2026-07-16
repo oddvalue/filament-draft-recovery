@@ -1,6 +1,13 @@
 # Filament Draft Recovery
 
-Auto-save draft & crash recovery for Filament v4 create/edit pages, with swappable storage drivers.
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/oddvalue/filament-draft-recovery.svg?style=flat-square)](https://packagist.org/packages/oddvalue/filament-draft-recovery)
+![PHP Support](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddvalue%2Ffilament-draft-recovery%2Fmain%2Fcomposer.json&query=require.php&label=PHP)
+![Filament Support](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Foddvalue%2Ffilament-draft-recovery%2Fmain%2Fcomposer.json&query=require%5B'filament%2Ffilament'%5D&label=Filament)
+[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/oddvalue/filament-draft-recovery/tests.yml?label=tests&style=flat-square)](https://github.com/oddvalue/filament-draft-recovery/actions?query=workflow%3Atests+branch%3Amain)
+[![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/oddvalue/filament-draft-recovery/fix-code-style.yml?label=code%20style&style=flat-square)](https://github.com/oddvalue/filament-draft-recovery/actions?query=workflow%3Afix-code-style+branch%3Amain)
+[![Total Downloads](https://img.shields.io/packagist/dt/oddvalue/filament-draft-recovery.svg?style=flat-square)](https://packagist.org/packages/oddvalue/filament-draft-recovery)
+
+Auto-save draft & crash recovery for Filament v4 create/edit pages, with swappable storage drivers. 100% test coverage, enforced in CI.
 
 While a user edits a create or edit form, the form state is auto-saved (debounced, ~2s). If their browser crashes, the tab closes, or the session expires, returning to the page shows a persistent notification offering to **recover** or **discard** the draft. Drafts are cleared on a successful save and expire after 7 days.
 
