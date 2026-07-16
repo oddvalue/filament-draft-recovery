@@ -1,11 +1,24 @@
 <?php
 
+use Illuminate\Database\Eloquent\Model;
+use Oddvalue\FilamentDraftRecovery\Data\DraftContext;
 use Oddvalue\FilamentDraftRecovery\Facades\DraftRecovery;
 use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Models\Post;
 use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\Pages\CreatePost;
 use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\Pages\EditPost;
 
 use function Pest\Livewire\livewire;
+
+function pageContext(string $key, ?Model $record = null): DraftContext
+{
+    return new DraftContext(
+        key: $key,
+        modelClass: Post::class,
+        operation: $record ? 'edit' : 'create',
+        record: $record,
+        userId: auth()->id(),
+    );
+}
 
 it('injects the draft recovery component in client mode with a create page key', function (): void {
     $user = actingAsTestUser();
@@ -57,7 +70,7 @@ describe('server mode (database store)', function (): void {
         livewire(CreatePost::class)
             ->call('storeRecoverableDraft', ['title' => 'Drafted title']);
 
-        $draft = DraftRecovery::driver()->get("filament-draft:{$user->id}:testing:posts:create");
+        $draft = DraftRecovery::driver()->get(pageContext("filament-draft:{$user->id}:testing:posts:create"));
 
         expect($draft)->not->toBeNull()
             ->and($draft->data['title'])->toBe('Drafted title');
@@ -66,7 +79,10 @@ describe('server mode (database store)', function (): void {
     it('offers recovery when a differing draft exists', function (): void {
         $user = actingAsTestUser();
 
-        DraftRecovery::driver()->put("filament-draft:{$user->id}:testing:posts:create", ['title' => 'Drafted title']);
+        DraftRecovery::driver()->put(
+            pageContext("filament-draft:{$user->id}:testing:posts:create"),
+            ['title' => 'Drafted title'],
+        );
 
         livewire(CreatePost::class)
             ->assertNotified();
@@ -83,7 +99,7 @@ describe('server mode (database store)', function (): void {
         $user = actingAsTestUser();
 
         $key = "filament-draft:{$user->id}:testing:posts:create";
-        DraftRecovery::driver()->put($key, ['title' => 'Drafted title']);
+        DraftRecovery::driver()->put(pageContext($key), ['title' => 'Drafted title']);
 
         livewire(CreatePost::class)
             ->dispatch('draft-recovery-restore', key: $key)
@@ -93,7 +109,10 @@ describe('server mode (database store)', function (): void {
     it('ignores restore events for other keys', function (): void {
         $user = actingAsTestUser();
 
-        DraftRecovery::driver()->put("filament-draft:{$user->id}:testing:posts:create", ['title' => 'Drafted title']);
+        DraftRecovery::driver()->put(
+            pageContext("filament-draft:{$user->id}:testing:posts:create"),
+            ['title' => 'Drafted title'],
+        );
 
         livewire(CreatePost::class)
             ->dispatch('draft-recovery-restore', key: 'some-other-key')
@@ -104,19 +123,19 @@ describe('server mode (database store)', function (): void {
         $user = actingAsTestUser();
 
         $key = "filament-draft:{$user->id}:testing:posts:create";
-        DraftRecovery::driver()->put($key, ['title' => 'Drafted title']);
+        DraftRecovery::driver()->put(pageContext($key), ['title' => 'Drafted title']);
 
         livewire(CreatePost::class)
             ->dispatch('draft-recovery-discard', key: $key);
 
-        expect(DraftRecovery::driver()->get($key))->toBeNull();
+        expect(DraftRecovery::driver()->get(pageContext($key)))->toBeNull();
     });
 
     it('clears the stored draft after a successful create', function (): void {
         $user = actingAsTestUser();
 
         $key = "filament-draft:{$user->id}:testing:posts:create";
-        DraftRecovery::driver()->put($key, ['title' => 'Drafted title']);
+        DraftRecovery::driver()->put(pageContext($key), ['title' => 'Drafted title']);
 
         livewire(CreatePost::class)
             ->fillForm(['title' => 'Final title'])
@@ -124,7 +143,7 @@ describe('server mode (database store)', function (): void {
             ->assertHasNoFormErrors()
             ->assertDispatched('draft-recovery-clear');
 
-        expect(DraftRecovery::driver()->get($key))->toBeNull();
+        expect(DraftRecovery::driver()->get(pageContext($key)))->toBeNull();
     });
 
     it('clears the stored draft after a successful save', function (): void {
@@ -133,7 +152,7 @@ describe('server mode (database store)', function (): void {
         $post = Post::query()->create(['title' => 'Hello']);
 
         $key = "filament-draft:{$user->id}:testing:posts:edit:{$post->getKey()}";
-        DraftRecovery::driver()->put($key, ['title' => 'Drafted title']);
+        DraftRecovery::driver()->put(pageContext($key, $post), ['title' => 'Drafted title']);
 
         livewire(EditPost::class, ['record' => $post->getKey()])
             ->fillForm(['title' => 'Updated'])
@@ -141,7 +160,7 @@ describe('server mode (database store)', function (): void {
             ->assertHasNoFormErrors()
             ->assertDispatched('draft-recovery-clear');
 
-        expect(DraftRecovery::driver()->get($key))->toBeNull();
+        expect(DraftRecovery::driver()->get(pageContext($key, $post)))->toBeNull();
     });
 
     it('drops a draft matching the current form state instead of prompting', function (): void {
@@ -150,11 +169,64 @@ describe('server mode (database store)', function (): void {
         $post = Post::query()->create(['title' => 'Hello']);
 
         $key = "filament-draft:{$user->id}:testing:posts:edit:{$post->getKey()}";
-        DraftRecovery::driver()->put($key, ['title' => 'Hello', 'body' => null]);
+        DraftRecovery::driver()->put(pageContext($key, $post), ['title' => 'Hello', 'body' => null]);
 
         livewire(EditPost::class, ['record' => $post->getKey()])
             ->assertNotNotified();
 
-        expect(DraftRecovery::driver()->get($key))->toBeNull();
+        expect(DraftRecovery::driver()->get(pageContext($key, $post)))->toBeNull();
+    });
+});
+
+describe('server mode (laravel-drafts store)', function (): void {
+    beforeEach(function (): void {
+        config()->set('filament-draft-recovery.store', 'laravel-drafts');
+    });
+
+    it('stores drafts as draft revisions of the edited record', function (): void {
+        actingAsTestUser();
+
+        $post = Post::query()->create(['title' => 'Published title']);
+
+        livewire(EditPost::class, ['record' => $post->getKey()])
+            ->call('storeRecoverableDraft', ['title' => 'Drafted title']);
+
+        $post->refresh();
+
+        expect($post->title)->toBe('Published title')
+            ->and($post->drafts()->first()?->title)->toBe('Drafted title');
+    });
+
+    it('offers recovery and restores the record draft into the form', function (): void {
+        actingAsTestUser();
+
+        $post = Post::query()->create(['title' => 'Published title']);
+        (clone $post)->updateAsDraft(['title' => 'Drafted title']);
+
+        $key = 'filament-draft:' . auth()->id() . ":testing:posts:edit:{$post->getKey()}";
+
+        livewire(EditPost::class, ['record' => $post->getKey()])
+            ->assertNotified()
+            ->dispatch('draft-recovery-restore', key: $key)
+            ->assertSchemaStateSet(['title' => 'Drafted title']);
+    });
+
+    it('clears the record draft after a successful save', function (): void {
+        actingAsTestUser();
+
+        $post = Post::query()->create(['title' => 'Published title']);
+        (clone $post)->updateAsDraft(['title' => 'Drafted title']);
+
+        livewire(EditPost::class, ['record' => $post->getKey()])
+            ->fillForm(['title' => 'Final title'])
+            ->call('save')
+            ->assertHasNoFormErrors()
+            ->assertDispatched('draft-recovery-clear');
+
+        $post->refresh();
+
+        expect($post->drafts()->count())->toBe(0)
+            ->and($post->title)->toBe('Final title')
+            ->and($post->is_current)->toBeTrue();
     });
 });

@@ -1,6 +1,7 @@
 <?php
 
 use Oddvalue\FilamentDraftRecovery\Contracts\DraftStore;
+use Oddvalue\FilamentDraftRecovery\Data\DraftContext;
 use Oddvalue\FilamentDraftRecovery\Data\RecoveredDraft;
 use Oddvalue\FilamentDraftRecovery\Facades\DraftRecovery;
 use Oddvalue\FilamentDraftRecovery\Stores\DatabaseStore;
@@ -33,14 +34,14 @@ it('supports custom stores via extend', function (): void {
             return false;
         }
 
-        public function get(string $key): ?RecoveredDraft
+        public function get(DraftContext $context): ?RecoveredDraft
         {
             return null;
         }
 
-        public function put(string $key, array $data): void {}
+        public function put(DraftContext $context, array $data): void {}
 
-        public function forget(string $key): void {}
+        public function forget(DraftContext $context): void {}
     };
 
     DraftRecovery::extend('custom', fn () => $custom);

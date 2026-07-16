@@ -53,11 +53,9 @@ return [
         'model' => RecoverableDraft::class,
     ],
 
-    'laravel-drafts' => [
-        // Must be a model that uses Oddvalue\LaravelDrafts\Concerns\HasDrafts
-        // and exposes "key" and "payload" attributes. The default extends the
-        // database store's model; run the add_drafts_columns migration.
-        'model' => null,
-    ],
+    // The "laravel-drafts" store needs no configuration here: drafts are
+    // stored on the page's own model, which must use the
+    // Oddvalue\LaravelDrafts\Concerns\HasDrafts trait (and have the drafts
+    // columns on its table).
 
 ];

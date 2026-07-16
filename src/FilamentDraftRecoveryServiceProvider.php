@@ -66,7 +66,6 @@ class FilamentDraftRecoveryServiceProvider extends PackageServiceProvider
     {
         return [
             'create_recoverable_drafts_table',
-            'add_drafts_columns_to_recoverable_drafts_table',
         ];
     }
 }

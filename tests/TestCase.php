@@ -105,12 +105,12 @@ class TestCase extends Orchestra
                 $table->string('title');
                 $table->text('body')->nullable();
                 $table->timestamps();
+                $table->drafts();
             });
         }
 
         if (! Schema::hasTable('recoverable_drafts')) {
             (include __DIR__ . '/../database/migrations/create_recoverable_drafts_table.php.stub')->up();
-            (include __DIR__ . '/../database/migrations/add_drafts_columns_to_recoverable_drafts_table.php.stub')->up();
         }
 
         foreach (['users', 'posts', 'recoverable_drafts'] as $tableName) {

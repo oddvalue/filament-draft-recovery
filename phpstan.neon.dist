@@ -11,7 +11,18 @@ parameters:
     ignoreErrors:
         # The trait is consumed by host applications, not by package code.
         - identifier: trait.unused
-        # laravel-drafts adds these scopes at runtime via the HasDrafts trait.
+        # The laravel-drafts store works with arbitrary host models whose
+        # HasDrafts methods only exist at runtime (asserted in
+        # assertDraftableModel()).
         -
-            message: '#Call to an undefined method .*::withDrafts\(\)#'
+            identifier: method.notFound
+            path: src/Stores/LaravelDraftsStore.php
+        -
+            identifier: staticMethod.notFound
+            path: src/Stores/LaravelDraftsStore.php
+        -
+            identifier: property.notFound
+            path: src/Stores/LaravelDraftsStore.php
+        -
+            identifier: varTag.unresolvableType
             path: src/Stores/LaravelDraftsStore.php

@@ -33,7 +33,6 @@ class DraftStoreManager extends Manager
     public function createLaravelDraftsDriver(): LaravelDraftsStore
     {
         return new LaravelDraftsStore(
-            modelClass: $this->config->get('filament-draft-recovery.laravel-drafts.model'),
             expiryDays: (int) $this->config->get('filament-draft-recovery.expiry_days', 7),
         );
     }

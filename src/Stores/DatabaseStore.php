@@ -4,6 +4,7 @@ namespace Oddvalue\FilamentDraftRecovery\Stores;
 
 use Illuminate\Database\Eloquent\Builder;
 use Oddvalue\FilamentDraftRecovery\Contracts\DraftStore;
+use Oddvalue\FilamentDraftRecovery\Data\DraftContext;
 use Oddvalue\FilamentDraftRecovery\Data\RecoveredDraft;
 use Oddvalue\FilamentDraftRecovery\Models\RecoverableDraft;
 
@@ -24,16 +25,16 @@ class DatabaseStore implements DraftStore
         return false;
     }
 
-    public function get(string $key): ?RecoveredDraft
+    public function get(DraftContext $context): ?RecoveredDraft
     {
-        $draft = $this->query()->where('key', $key)->first();
+        $draft = $this->query()->where('key', $context->key)->first();
 
         if (! $draft) {
             return null;
         }
 
         if ($draft->updated_at?->lt(now()->subDays($this->expiryDays))) {
-            $this->forget($key);
+            $this->forget($context);
 
             return null;
         }
@@ -44,17 +45,17 @@ class DatabaseStore implements DraftStore
         );
     }
 
-    public function put(string $key, array $data): void
+    public function put(DraftContext $context, array $data): void
     {
         $this->query()->updateOrCreate(
-            ['key' => $key],
+            ['key' => $context->key],
             ['payload' => $data],
         );
     }
 
-    public function forget(string $key): void
+    public function forget(DraftContext $context): void
     {
-        $this->query()->where('key', $key)->delete();
+        $this->query()->where('key', $context->key)->delete();
     }
 
     /**

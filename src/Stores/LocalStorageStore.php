@@ -3,6 +3,7 @@
 namespace Oddvalue\FilamentDraftRecovery\Stores;
 
 use Oddvalue\FilamentDraftRecovery\Contracts\DraftStore;
+use Oddvalue\FilamentDraftRecovery\Data\DraftContext;
 use Oddvalue\FilamentDraftRecovery\Data\RecoveredDraft;
 
 /**
@@ -17,17 +18,17 @@ class LocalStorageStore implements DraftStore
         return true;
     }
 
-    public function get(string $key): ?RecoveredDraft
+    public function get(DraftContext $context): ?RecoveredDraft
     {
         return null;
     }
 
-    public function put(string $key, array $data): void
+    public function put(DraftContext $context, array $data): void
     {
         //
     }
 
-    public function forget(string $key): void
+    public function forget(DraftContext $context): void
     {
         //
     }

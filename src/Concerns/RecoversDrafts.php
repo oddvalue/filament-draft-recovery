@@ -9,6 +9,7 @@ use Filament\Resources\Pages\EditRecord;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\On;
 use Oddvalue\FilamentDraftRecovery\Contracts\DraftStore;
+use Oddvalue\FilamentDraftRecovery\Data\DraftContext;
 use Oddvalue\FilamentDraftRecovery\DraftRecoveryPlugin;
 use Oddvalue\FilamentDraftRecovery\Facades\DraftRecovery;
 
@@ -70,6 +71,17 @@ trait RecoversDrafts
         return config('filament-draft-recovery.key_prefix') . implode(':', $segments);
     }
 
+    public function draftRecoveryContext(): DraftContext
+    {
+        return new DraftContext(
+            key: $this->draftRecoveryKey(),
+            modelClass: static::getResource()::getModel(),
+            operation: $this instanceof EditRecord ? 'edit' : 'create',
+            record: $this instanceof EditRecord ? $this->getRecord() : null,
+            userId: filament()->auth()->id() ?? auth()->id(),
+        );
+    }
+
     /**
      * Livewire trait lifecycle hook — offers recovery of a server-side draft
      * once the form has been filled.
@@ -82,8 +94,9 @@ trait RecoversDrafts
             return;
         }
 
-        $key = $this->draftRecoveryKey();
-        $draft = $store->get($key);
+        $context = $this->draftRecoveryContext();
+        $key = $context->key;
+        $draft = $store->get($context);
 
         if (! $draft) {
             return;
@@ -95,7 +108,7 @@ trait RecoversDrafts
         // Merging the draft over the current state changing nothing means the
         // draft holds nothing worth recovering (mirrors the client-side check).
         if ([...$currentData, ...$draftData] == $currentData) {
-            $store->forget($key);
+            $store->forget($context);
 
             return;
         }
@@ -136,7 +149,7 @@ trait RecoversDrafts
             return;
         }
 
-        $store->put($this->draftRecoveryKey(), $this->stripDraftRecoveryExcludedFields($data));
+        $store->put($this->draftRecoveryContext(), $this->stripDraftRecoveryExcludedFields($data));
     }
 
     #[On('draft-recovery-restore')]
@@ -148,7 +161,7 @@ trait RecoversDrafts
             return;
         }
 
-        $draft = $store->get($key);
+        $draft = $store->get($this->draftRecoveryContext());
 
         if (! $draft) {
             return;
@@ -169,7 +182,7 @@ trait RecoversDrafts
             return;
         }
 
-        $store->forget($key);
+        $store->forget($this->draftRecoveryContext());
     }
 
     protected function afterCreate(): void
@@ -184,14 +197,14 @@ trait RecoversDrafts
 
     public function dispatchDraftRecoveryClear(): void
     {
-        $key = $this->draftRecoveryKey();
+        $context = $this->draftRecoveryContext();
         $store = $this->getDraftStore();
 
         if (! $store->isClientSide()) {
-            $store->forget($key);
+            $store->forget($context);
         }
 
-        $this->dispatch('draft-recovery-clear', key: $key);
+        $this->dispatch('draft-recovery-clear', key: $context->key);
     }
 
     public function getFooter(): ?View

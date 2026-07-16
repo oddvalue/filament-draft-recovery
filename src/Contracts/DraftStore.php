@@ -2,8 +2,13 @@
 
 namespace Oddvalue\FilamentDraftRecovery\Contracts;
 
+use Oddvalue\FilamentDraftRecovery\Data\DraftContext;
 use Oddvalue\FilamentDraftRecovery\Data\RecoveredDraft;
 
+/**
+ * Implement this interface (and register the implementation with
+ * DraftRecovery::extend()) to supply a custom draft storage backend.
+ */
 interface DraftStore
 {
     /**
@@ -12,12 +17,12 @@ interface DraftStore
      */
     public function isClientSide(): bool;
 
-    public function get(string $key): ?RecoveredDraft;
+    public function get(DraftContext $context): ?RecoveredDraft;
 
     /**
      * @param  array<string, mixed>  $data
      */
-    public function put(string $key, array $data): void;
+    public function put(DraftContext $context, array $data): void;
 
-    public function forget(string $key): void;
+    public function forget(DraftContext $context): void;
 }

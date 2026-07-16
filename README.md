@@ -10,7 +10,7 @@ While a user edits a create or edit form, the form state is auto-saved (debounce
 |---|---|---|
 | `local-storage` (default) | The user's browser localStorage | Zero server storage; drafts are plaintext on the user's machine |
 | `database` | The `recoverable_drafts` table | Drafts follow the user across devices |
-| `laravel-drafts` | The `recoverable_drafts` table via [oddvalue/laravel-drafts](https://github.com/oddvalue/laravel-drafts) | Every auto-save is kept as a revision |
+| `laravel-drafts` | **On the model being edited**, via [oddvalue/laravel-drafts](https://github.com/oddvalue/laravel-drafts) | Auto-saves become draft revisions of the record itself |
 
 Custom drivers can be registered with `DraftRecovery::extend()`.
 
@@ -73,20 +73,58 @@ class CreatePost extends CreateRecord
 
 ```bash
 composer require oddvalue/laravel-drafts
-php artisan migrate # runs the add_drafts_columns_to_recoverable_drafts_table migration
 ```
 
-Payloads are stored on a model using laravel-drafts' `HasDrafts` trait, so each auto-save becomes a revision (laravel-drafts' revision retention applies).
+Drafts are stored **directly on the model being edited**, which must use laravel-drafts' `HasDrafts` trait (and have the drafts columns on its table — see the laravel-drafts docs):
+
+- **Edit pages**: each auto-save calls `updateAsDraft()` on the record, so the recoverable state lives in the record's own draft (`$record->draft`), visible to anything else using laravel-drafts.
+- **Create pages**: the first auto-save creates an unpublished record via `createDraft()`; later auto-saves update it in place. Recovery finds the user's latest unpublished draft of the model (scoped by publisher).
+- **Clearing** (successful save / discard) deletes the record's *current draft* via query deletes — published rows and the unpublished revision copies laravel-drafts keeps as history are never touched — and reinstates the `is_current` flag on the record.
+- Saves are **best-effort**: payloads that violate column constraints (required fields not yet filled) are skipped and retried on the next auto-save.
+- Only real table columns are persisted; form-only keys are dropped. Repeater/relation state is not covered by this driver — use `database` if you need the full form payload.
 
 ### Custom drivers
 
+Implement `Oddvalue\FilamentDraftRecovery\Contracts\DraftStore` and register it in a service provider:
+
 ```php
+use Oddvalue\FilamentDraftRecovery\Contracts\DraftStore;
+use Oddvalue\FilamentDraftRecovery\Data\DraftContext;
+use Oddvalue\FilamentDraftRecovery\Data\RecoveredDraft;
 use Oddvalue\FilamentDraftRecovery\Facades\DraftRecovery;
 
+class RedisDraftStore implements DraftStore
+{
+    public function isClientSide(): bool
+    {
+        return false;
+    }
+
+    public function get(DraftContext $context): ?RecoveredDraft
+    {
+        $payload = Redis::get($context->key);
+
+        return $payload ? new RecoveredDraft(data: json_decode($payload, true)) : null;
+    }
+
+    public function put(DraftContext $context, array $data): void
+    {
+        Redis::setex($context->key, 60 * 60 * 24 * 7, json_encode($data));
+    }
+
+    public function forget(DraftContext $context): void
+    {
+        Redis::del($context->key);
+    }
+}
+
+// In a service provider:
 DraftRecovery::extend('redis', fn () => new RedisDraftStore);
 ```
 
-Implement `Oddvalue\FilamentDraftRecovery\Contracts\DraftStore` (`isClientSide()`, `get()`, `put()`, `forget()`).
+Then select it like any built-in driver (`'store' => 'redis'`, `DraftRecoveryPlugin::make()->store('redis')`, or `protected ?string $draftStore = 'redis';`).
+
+Every method receives a `DraftContext` carrying the unique `key` (always sufficient for key/value stores) plus the page's `modelClass`, `operation` (`create`/`edit`), `record` (edit pages), and `userId` — everything a record-based store needs.
 
 ### Excluding sensitive fields
 

@@ -2,25 +2,38 @@
 
 namespace Oddvalue\FilamentDraftRecovery\Stores;
 
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Schema;
 use Oddvalue\FilamentDraftRecovery\Contracts\DraftStore;
+use Oddvalue\FilamentDraftRecovery\Data\DraftContext;
 use Oddvalue\FilamentDraftRecovery\Data\RecoveredDraft;
-use Oddvalue\FilamentDraftRecovery\Models\RevisionedRecoverableDraft;
 use Oddvalue\LaravelDrafts\Concerns\HasDrafts;
 use RuntimeException;
 
 /**
- * Persists draft payloads through oddvalue/laravel-drafts, so every auto-save
- * becomes a revision of the draft record (with the package's revision
- * retention applying). Requires the drafts columns on the
- * recoverable_drafts table — see the add_drafts_columns migration.
+ * Stores drafts through oddvalue/laravel-drafts, directly on the model being
+ * edited — the page's model must use the HasDrafts trait.
+ *
+ * - Edit pages: each auto-save becomes a draft revision of the record
+ *   (updateAsDraft), so the record's own draft/revision history holds the
+ *   recoverable state.
+ * - Create pages: the first auto-save creates an unpublished draft record
+ *   (createDraft) which subsequent auto-saves update in place; recovery finds
+ *   the user's latest unpublished draft of the model.
+ *
+ * Saves are best-effort: a payload that violates database constraints (e.g.
+ * required columns not yet filled in) is skipped and retried on the next
+ * auto-save.
+ *
+ * Note: clearing drafts deletes the record's unpublished revisions (edit) or
+ * the user's unpublished draft record (create) via query deletes, so the
+ * published record and its published revision history are never touched.
  */
 class LaravelDraftsStore implements DraftStore
 {
-    /**
-     * @param  class-string<RevisionedRecoverableDraft>|null  $modelClass
-     */
     public function __construct(
-        protected ?string $modelClass = null,
         protected int $expiryDays = 7,
     ) {
         if (! trait_exists(HasDrafts::class)) {
@@ -28,8 +41,6 @@ class LaravelDraftsStore implements DraftStore
                 'The laravel-drafts draft store requires the oddvalue/laravel-drafts package. Install it with: composer require oddvalue/laravel-drafts'
             );
         }
-
-        $this->modelClass ??= RevisionedRecoverableDraft::class;
     }
 
     public function isClientSide(): bool
@@ -37,57 +48,177 @@ class LaravelDraftsStore implements DraftStore
         return false;
     }
 
-    public function get(string $key): ?RecoveredDraft
+    public function get(DraftContext $context): ?RecoveredDraft
     {
-        $draft = $this->currentDraft($key);
+        $this->assertDraftableModel($context);
+
+        $draft = $this->resolveDraft($context);
 
         if (! $draft) {
             return null;
         }
 
         if ($draft->updated_at?->lt(now()->subDays($this->expiryDays))) {
-            $this->forget($key);
+            $this->forget($context);
 
             return null;
         }
 
         return new RecoveredDraft(
-            data: $draft->payload ?? [],
+            data: $this->payloadFromDraft($draft),
             savedAt: $draft->updated_at,
         );
     }
 
-    public function put(string $key, array $data): void
+    public function put(DraftContext $context, array $data): void
     {
-        $draft = $this->currentDraft($key);
+        $this->assertDraftableModel($context);
 
-        if ($draft) {
-            $draft->updateAsDraft(['payload' => $data]);
+        $attributes = $this->attributesFromPayload($context, $data);
+
+        if ($attributes === []) {
+            return;
+        }
+
+        try {
+            if ($context->record) {
+                // Fill the clone, not the page's record instance — saveAsDraft
+                // persists a replica, leaving the published row untouched.
+                (clone $context->record)->updateAsDraft($attributes);
+
+                return;
+            }
+
+            if ($existing = $this->resolveCreatePageDraft($context)) {
+                $existing->withoutRevision()->fill($attributes)->save();
+
+                return;
+            }
+
+            ($context->modelClass)::createDraft($attributes);
+        } catch (QueryException) {
+            // Best-effort: incomplete form state can violate column
+            // constraints — the next auto-save will try again.
+        }
+    }
+
+    public function forget(DraftContext $context): void
+    {
+        $this->assertDraftableModel($context);
+
+        if ($context->record) {
+            // Query deletes on purpose: Eloquent deletes on a HasDrafts model
+            // cascade to every revision sharing the uuid, including the
+            // published row. Only the current draft is removed — unpublished
+            // revision copies created by ordinary saves are legitimate
+            // history — and the record row takes the "current" flag back.
+            $context->record->drafts()->delete();
+
+            $context->record->newModelQuery()
+                ->whereKey($context->record->getKey())
+                ->update([$context->record->getIsCurrentColumn() => true]);
 
             return;
         }
 
-        ($this->modelClass)::createDraft([
-            'key' => $key,
-            'payload' => $data,
-        ]);
+        $draft = $this->resolveCreatePageDraft($context);
+
+        if ($draft) {
+            $draft->newModelQuery()->whereKey($draft->getKey())->delete();
+        }
     }
 
-    public function forget(string $key): void
+    protected function resolveDraft(DraftContext $context): ?Model
     {
-        ($this->modelClass)::query()
-            ->withDrafts()
-            ->where('key', $key)
-            ->get()
-            ->each->delete();
+        if ($context->record) {
+            return $context->record->drafts()->latest('updated_at')->first();
+        }
+
+        return $this->resolveCreatePageDraft($context);
     }
 
-    protected function currentDraft(string $key): ?RevisionedRecoverableDraft
+    /**
+     * The user's latest unpublished, current draft record of the model — a
+     * draft created from a create page rather than a revision of an existing
+     * record.
+     */
+    protected function resolveCreatePageDraft(DraftContext $context): ?Model
     {
-        return ($this->modelClass)::query()
-            ->withDrafts()
-            ->where('key', $key)
+        /** @var Model&HasDrafts $model */
+        $model = new ($context->modelClass);
+
+        return ($context->modelClass)::query()
+            ->onlyDrafts()
             ->current()
+            ->when(
+                $context->userId !== null,
+                fn (Builder $query) => $query->where($model->getPublisherColumns()['id'], $context->userId),
+            )
+            ->latest('updated_at')
             ->first();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function attributesFromPayload(DraftContext $context, array $data): array
+    {
+        return array_intersect_key($data, array_flip($this->draftableColumns($context)));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function payloadFromDraft(Model $draft): array
+    {
+        $context = new DraftContext(
+            key: '',
+            modelClass: $draft::class,
+            operation: 'edit',
+        );
+
+        return array_intersect_key(
+            $draft->attributesToArray(),
+            array_flip($this->draftableColumns($context)),
+        );
+    }
+
+    /**
+     * The model's real columns minus its primary key, timestamps, and the
+     * laravel-drafts bookkeeping columns — the attributes a form draft may
+     * carry.
+     *
+     * @return array<string>
+     */
+    protected function draftableColumns(DraftContext $context): array
+    {
+        /** @var Model&HasDrafts $model */
+        $model = new ($context->modelClass);
+
+        $excluded = [
+            $model->getKeyName(),
+            $model->getCreatedAtColumn(),
+            $model->getUpdatedAtColumn(),
+            $model->getUuidColumn(),
+            $model->getIsCurrentColumn(),
+            $model->getIsPublishedColumn(),
+            $model->getPublishedAtColumn(),
+            ...array_values($model->getPublisherColumns()),
+        ];
+
+        return array_values(array_diff(
+            Schema::getColumnListing($model->getTable()),
+            $excluded,
+        ));
+    }
+
+    protected function assertDraftableModel(DraftContext $context): void
+    {
+        if (! in_array(HasDrafts::class, class_uses_recursive($context->modelClass))) {
+            throw new RuntimeException(
+                "The laravel-drafts draft store requires [{$context->modelClass}] to use the " . HasDrafts::class . ' trait.'
+            );
+        }
     }
 }
