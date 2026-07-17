@@ -55,9 +55,22 @@ return [
         'model' => RecoverableDraft::class,
     ],
 
-    // The "laravel-drafts" store needs no configuration here: drafts are
-    // stored on the page's own model, which must use the
-    // Oddvalue\LaravelDrafts\Concerns\HasDrafts trait (and have the drafts
-    // columns on its table).
+    /*
+    |--------------------------------------------------------------------------
+    | laravel-drafts store
+    |--------------------------------------------------------------------------
+    |
+    | Edit-page drafts are stored on the page's own model via laravel-drafts'
+    | auto draft feature — the model must use the HasDrafts trait and auto
+    | drafts must be enabled (drafts.auto_drafts.enabled). Auto drafts only
+    | exist for existing records, so create-page drafts are delegated to
+    | another store: create_store, falling back to the default store above
+    | (or "database" when the default is laravel-drafts itself).
+    |
+    */
+
+    'laravel-drafts' => [
+        'create_store' => null,
+    ],
 
 ];

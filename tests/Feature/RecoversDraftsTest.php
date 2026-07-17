@@ -305,4 +305,40 @@ describe('server mode (laravel-drafts store)', function (): void {
             ->and($post->title)->toBe('Final title')
             ->and($post->is_current)->toBeTrue();
     });
+
+    it('renders create pages in the mode of the delegated create page store', function (): void {
+        actingAsTestUser();
+
+        // Default create page store falls back to the config default, which
+        // here is laravel-drafts itself — so the database store steps in.
+        livewire(CreatePost::class)
+            ->assertSeeHtml('\u0022mode\u0022:\u0022server\u0022');
+
+        config()->set('filament-draft-recovery.laravel-drafts.create_store', 'local-storage');
+
+        livewire(CreatePost::class)
+            ->assertSeeHtml('\u0022mode\u0022:\u0022client\u0022');
+    });
+
+    it('delegates create page drafts to the configured create page store', function (): void {
+        $user = actingAsTestUser();
+
+        config()->set('filament-draft-recovery.laravel-drafts.create_store', 'database');
+
+        $key = sprintf('filament-draft:%s:testing:posts:create', $user->id);
+
+        livewire(CreatePost::class)
+            ->call('storeRecoverableDraft', ['title' => 'Drafted title']);
+
+        expect(RecoverableDraft::query()->where('key', $key)->exists())->toBeTrue()
+            ->and(Post::query()->withDrafts()->count())->toBe(0);
+
+        livewire(CreatePost::class)
+            ->fillForm(['title' => 'Final title'])
+            ->call('create')
+            ->assertHasNoFormErrors()
+            ->assertDispatched('draft-recovery-clear');
+
+        expect(RecoverableDraft::query()->where('key', $key)->exists())->toBeFalse();
+    });
 });

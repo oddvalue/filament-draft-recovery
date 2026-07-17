@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f2b082a230a87ba548daac3b384000ac",
+    "content-hash": "673085396b899706a92f84c655c73f8a",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -8295,6 +8295,42 @@
             "time": "2026-02-07T07:09:04+00:00"
         },
         {
+            "name": "driftingly/rector-laravel",
+            "version": "2.5.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/driftingly/rector-laravel.git",
+                "reference": "0dbdd842dfdbc821cfe5f47ca7326e2502b2a107"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/driftingly/rector-laravel/zipball/0dbdd842dfdbc821cfe5f47ca7326e2502b2a107",
+                "reference": "0dbdd842dfdbc821cfe5f47ca7326e2502b2a107",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^7.4 || ^8.0",
+                "rector/rector": "^2.2.7",
+                "webmozart/assert": "^1.11 || ^2.0"
+            },
+            "type": "rector-extension",
+            "autoload": {
+                "psr-4": {
+                    "RectorLaravel\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "Rector upgrades rules for Laravel Framework",
+            "support": {
+                "issues": "https://github.com/driftingly/rector-laravel/issues",
+                "source": "https://github.com/driftingly/rector-laravel/tree/2.5.0"
+            },
+            "time": "2026-06-02T16:22:14+00:00"
+        },
+        {
             "name": "fakerphp/faker",
             "version": "v1.24.1",
             "source": {
@@ -9243,39 +9279,41 @@
         },
         {
             "name": "oddvalue/laravel-drafts",
-            "version": "v2.1.1",
+            "version": "dev-main",
             "source": {
                 "type": "git",
                 "url": "https://github.com/oddvalue/laravel-drafts.git",
-                "reference": "91cb480ff53083262701df943b3ab0db270a5bfc"
+                "reference": "9d11857f407a975aa300c8f0f5c96e897cf0e9fe"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/oddvalue/laravel-drafts/zipball/91cb480ff53083262701df943b3ab0db270a5bfc",
-                "reference": "91cb480ff53083262701df943b3ab0db270a5bfc",
+                "url": "https://api.github.com/repos/oddvalue/laravel-drafts/zipball/9d11857f407a975aa300c8f0f5c96e897cf0e9fe",
+                "reference": "9d11857f407a975aa300c8f0f5c96e897cf0e9fe",
                 "shasum": ""
             },
             "require": {
-                "illuminate/contracts": "^11.0|^12.0",
+                "driftingly/rector-laravel": "^2.1",
+                "illuminate/contracts": "^11.0|^12.0|^13.0",
                 "php": "^8.0",
                 "spatie/laravel-package-tools": "^1.9.2"
             },
             "require-dev": {
                 "friendsofphp/php-cs-fixer": "^3.8",
                 "larastan/larastan": "^3.0",
-                "orchestra/testbench": "^7.0|^8.0|^9.0|^10.0",
-                "pestphp/pest": "^1|^2|^3.7",
-                "pestphp/pest-plugin-laravel": "^1.1|^2.0|^3.1",
+                "orchestra/testbench": "^7.0|^8.0|^9.0|^10.0|^11.0",
+                "pestphp/pest": "^1|^2|^3.7|^4.4",
+                "pestphp/pest-plugin-laravel": "^1.1|^2.0|^3.1|^4.1",
                 "phpstan/extension-installer": "^1.1",
                 "phpstan/phpstan-deprecation-rules": "^1.0|^2.0",
                 "phpstan/phpstan-phpunit": "^1.0|^2.0",
-                "phpunit/phpunit": "^9.0|^10.0|^11.5.3",
+                "phpunit/phpunit": "^9.0|^10.0|^11.5.3|^12.5.12",
                 "rector/rector": "^2.0",
                 "roave/security-advisories": "dev-latest",
                 "spatie/invade": "^2.0",
                 "spatie/pest-plugin-test-time": "^1.0|^2.0",
                 "spatie/ray": "^1.37"
             },
+            "default-branch": true,
             "type": "library",
             "extra": {
                 "laravel": {
@@ -9314,7 +9352,7 @@
             ],
             "support": {
                 "issues": "https://github.com/oddvalue/laravel-drafts/issues",
-                "source": "https://github.com/oddvalue/laravel-drafts/tree/v2.1.1"
+                "source": "https://github.com/oddvalue/laravel-drafts/tree/main"
             },
             "funding": [
                 {
@@ -9322,7 +9360,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2025-10-30T11:54:48+00:00"
+            "time": "2026-07-17T07:23:37+00:00"
         },
         {
             "name": "orchestra/canvas",
@@ -12624,7 +12662,9 @@
     ],
     "aliases": [],
     "minimum-stability": "dev",
-    "stability-flags": {},
+    "stability-flags": {
+        "oddvalue/laravel-drafts": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {

@@ -9,6 +9,7 @@ use Filament\Resources\Pages\EditRecord;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\On;
 use Oddvalue\FilamentDraftRecovery\Contracts\DraftStore;
+use Oddvalue\FilamentDraftRecovery\Contracts\ResolvesCreatePageStore;
 use Oddvalue\FilamentDraftRecovery\Data\DraftContext;
 use Oddvalue\FilamentDraftRecovery\DraftRecoveryPlugin;
 use Oddvalue\FilamentDraftRecovery\Facades\DraftRecovery;
@@ -35,7 +36,15 @@ trait RecoversDrafts
 {
     public function getDraftStore(): DraftStore
     {
-        return DraftRecovery::driver($this->getDraftStoreName());
+        $store = DraftRecovery::driver($this->getDraftStoreName());
+
+        // Some stores only persist drafts of existing records and delegate
+        // create pages elsewhere (e.g. laravel-drafts auto drafts).
+        if (! $this instanceof EditRecord && $store instanceof ResolvesCreatePageStore) {
+            return $store->getCreatePageStore();
+        }
+
+        return $store;
     }
 
     public function getDraftStoreName(): ?string

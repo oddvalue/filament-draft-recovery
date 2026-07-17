@@ -3,6 +3,7 @@
 namespace Oddvalue\FilamentDraftRecovery;
 
 use Illuminate\Support\Manager;
+use Oddvalue\FilamentDraftRecovery\Contracts\DraftStore;
 use Oddvalue\FilamentDraftRecovery\Models\RecoverableDraft;
 use Oddvalue\FilamentDraftRecovery\Stores\DatabaseStore;
 use Oddvalue\FilamentDraftRecovery\Stores\LaravelDraftsStore;
@@ -40,7 +41,22 @@ class DraftStoreManager extends Manager
     {
         return new LaravelDraftsStore(
             expiryDays: $this->expiryDays(),
+            createPageStore: fn (): DraftStore => $this->driver($this->laravelDraftsCreatePageStoreName()),
         );
+    }
+
+    /**
+     * The store handling create-page drafts for the laravel-drafts store:
+     * the configured create_store, falling back to the default store — or
+     * "database" when the default is laravel-drafts itself.
+     */
+    protected function laravelDraftsCreatePageStoreName(): string
+    {
+        $configured = $this->config->get('filament-draft-recovery.laravel-drafts.create_store');
+
+        $name = is_string($configured) && $configured !== '' ? $configured : $this->getDefaultDriver();
+
+        return $name === 'laravel-drafts' ? 'database' : $name;
     }
 
     protected function expiryDays(): int

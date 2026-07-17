@@ -81,6 +81,7 @@ class TestCase extends Orchestra
         }
 
         $app['config']->set('auth.providers.users.model', User::class);
+        $app['config']->set('drafts.auto_drafts.enabled', true);
     }
 
     /**

@@ -1,8 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 use Illuminate\Database\Eloquent\Model;
 use Oddvalue\FilamentDraftRecovery\Data\DraftContext;
+use Oddvalue\FilamentDraftRecovery\Facades\DraftRecovery;
+use Oddvalue\FilamentDraftRecovery\Stores\DatabaseStore;
 use Oddvalue\FilamentDraftRecovery\Stores\LaravelDraftsStore;
+use Oddvalue\FilamentDraftRecovery\Stores\LocalStorageStore;
 use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Models\Post;
 use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Models\User;
 
@@ -28,15 +33,30 @@ function createContext(): DraftContext
 }
 
 it('rejects models that do not use HasDrafts', function (): void {
+    $user = User::query()->create([
+        'name' => 'Test',
+        'email' => 'reject@example.com',
+        'password' => 'secret',
+    ]);
+
     (new LaravelDraftsStore)->get(new DraftContext(
         key: 'a-key',
         modelClass: User::class,
-        operation: 'create',
+        operation: 'edit',
+        record: $user,
     ));
 })->throws(RuntimeException::class, 'HasDrafts');
 
+it('rejects models when auto drafts are disabled', function (): void {
+    config()->set('drafts.auto_drafts.enabled', false);
+
+    $post = Post::query()->create(['title' => 'Published title']);
+
+    (new LaravelDraftsStore)->get(editContext($post));
+})->throws(RuntimeException::class, 'auto drafts to be enabled');
+
 describe('edit pages', function (): void {
-    it('stores the draft as a non-current auto draft of the record', function (): void {
+    it('stores the draft as the record auto draft', function (): void {
         $post = Post::query()->create(['title' => 'Published title']);
         $store = new LaravelDraftsStore;
 
@@ -49,8 +69,8 @@ describe('edit pages', function (): void {
             ->and($post->is_current)->toBeTrue()
             ->and($autoDraft)->not->toBeNull()
             ->and($autoDraft->title)->toBe('Drafted title')
+            ->and($autoDraft->is_auto)->toBeTrue()
             ->and($autoDraft->is_current)->toBeFalse()
-            ->and($autoDraft->is_published)->toBeFalse()
             // The auto draft must not read as the record's current draft.
             ->and($post->drafts()->count())->toBe(0);
     });
@@ -94,7 +114,7 @@ describe('edit pages', function (): void {
 
         expect($draft)->not->toBeNull()
             ->and($draft->data['title'])->toBe('Drafted title')
-            ->and($draft->data)->not->toHaveKeys(['id', 'uuid', 'is_current', 'is_published']);
+            ->and($draft->data)->not->toHaveKeys(['id', 'uuid', 'is_current', 'is_published', 'is_auto']);
     });
 
     it('ignores payload keys that are not table columns', function (): void {
@@ -104,6 +124,24 @@ describe('edit pages', function (): void {
         $store->put(editContext($post), ['title' => 'Drafted title', 'not_a_column' => 'x']);
 
         expect($store->get(editContext($post))->data['title'])->toBe('Drafted title');
+    });
+
+    it('skips saves whose payload has no draftable columns', function (): void {
+        $post = Post::query()->create(['title' => 'Published title']);
+        $store = new LaravelDraftsStore;
+
+        $store->put(editContext($post), ['not_a_column' => 'x']);
+
+        expect($store->resolveAutoDraft($post))->toBeNull();
+    });
+
+    it('skips payloads that violate database constraints', function (): void {
+        $post = Post::query()->create(['title' => 'Published title']);
+        $store = new LaravelDraftsStore;
+
+        $store->put(editContext($post), ['title' => null]);
+
+        expect($store->resolveAutoDraft($post))->toBeNull();
     });
 
     it('forgets the auto draft without touching the published record', function (): void {
@@ -120,89 +158,72 @@ describe('edit pages', function (): void {
             ->and($post->is_current)->toBeTrue();
     });
 
-    it('returns null when the record has no draft', function (): void {
+    it('returns null when the record has no auto draft', function (): void {
         $post = Post::query()->create(['title' => 'Published title']);
 
         expect((new LaravelDraftsStore)->get(editContext($post)))->toBeNull();
     });
+
+    it('ignores and prunes expired auto drafts', function (): void {
+        $post = Post::query()->create(['title' => 'Published title']);
+        $store = new LaravelDraftsStore(expiryDays: 7);
+
+        $store->put(editContext($post), ['title' => 'Old draft']);
+
+        Post::query()->onlyAutoDrafts()->update(['updated_at' => now()->subDays(8)]);
+
+        expect($store->get(editContext($post)))->toBeNull()
+            ->and($store->resolveAutoDraft($post))->toBeNull();
+    });
 });
 
-describe('create pages', function (): void {
-    beforeEach(function (): void {
-        actingAsTestUser();
-    });
-
-    it('stores the draft as an unpublished draft record', function (): void {
-        $store = new LaravelDraftsStore;
+describe('create pages (delegated store)', function (): void {
+    it('delegates create page drafts to the create page store', function (): void {
+        $store = new LaravelDraftsStore(createPageStore: fn (): DatabaseStore => new DatabaseStore);
 
         $store->put(createContext(), ['title' => 'Drafted title']);
 
-        expect(Post::query()->count())->toBe(0)
-            ->and(Post::query()->onlyDrafts()->count())->toBe(1)
-            ->and(Post::query()->onlyDrafts()->first()->title)->toBe('Drafted title');
-    });
+        expect(Post::query()->withDrafts()->count())->toBe(0)
+            ->and($store->get(createContext())->data['title'])->toBe('Drafted title');
 
-    it('updates the same draft record on subsequent saves', function (): void {
-        $store = new LaravelDraftsStore;
-
-        $store->put(createContext(), ['title' => 'First']);
-        $store->put(createContext(), ['title' => 'Second']);
-
-        expect(Post::query()->onlyDrafts()->count())->toBe(1)
-            ->and($store->get(createContext())->data['title'])->toBe('Second');
-    });
-
-    it('forgets the draft record', function (): void {
-        $store = new LaravelDraftsStore;
-
-        $store->put(createContext(), ['title' => 'Drafted title']);
         $store->forget(createContext());
 
-        expect($store->get(createContext()))->toBeNull()
-            ->and(Post::query()->onlyDrafts()->count())->toBe(0);
+        expect($store->get(createContext()))->toBeNull();
     });
 
-    it('skips payloads that violate database constraints', function (): void {
-        $store = new LaravelDraftsStore;
-
-        $store->put(createContext(), ['title' => null]);
-
-        expect(Post::query()->onlyDrafts()->count())->toBe(0);
+    it('defaults to a database create page store when none is provided', function (): void {
+        expect((new LaravelDraftsStore)->getCreatePageStore())->toBeInstanceOf(DatabaseStore::class);
     });
 
-    it('scopes create page drafts to the publishing user', function (): void {
-        $store = new LaravelDraftsStore;
+    it('refuses to delegate create page drafts to itself', function (): void {
+        $store = new LaravelDraftsStore(createPageStore: fn (): LaravelDraftsStore => new LaravelDraftsStore);
 
-        $store->put(createContext(), ['title' => 'Mine']);
-
-        $otherUserContext = new DraftContext(
-            key: 'create-key',
-            modelClass: Post::class,
-            operation: 'create',
-            userId: 999999,
-        );
-
-        expect($store->get($otherUserContext))->toBeNull()
-            ->and($store->get(createContext())->data['title'])->toBe('Mine');
-    });
+        $store->getCreatePageStore();
+    })->throws(RuntimeException::class, 'cannot delegate create page drafts to itself');
 });
 
-it('skips saves whose payload has no draftable columns', function (): void {
-    $post = Post::query()->create(['title' => 'Published title']);
-    $store = new LaravelDraftsStore;
+describe('manager create page store resolution', function (): void {
+    it('uses the configured create_store', function (): void {
+        config()->set('filament-draft-recovery.laravel-drafts.create_store', 'database');
 
-    $store->put(editContext($post), ['not_a_column' => 'x']);
+        $store = DraftRecovery::driver('laravel-drafts');
 
-    expect($store->resolveAutoDraft($post))->toBeNull();
-});
+        expect($store->getCreatePageStore())->toBeInstanceOf(DatabaseStore::class);
+    });
 
-it('ignores and prunes expired drafts', function (): void {
-    $post = Post::query()->create(['title' => 'Published title']);
-    $store = new LaravelDraftsStore(expiryDays: 7);
+    it('falls back to the default store', function (): void {
+        config()->set('filament-draft-recovery.store', 'local-storage');
 
-    $store->put(editContext($post), ['title' => 'Old draft']);
+        $store = DraftRecovery::driver('laravel-drafts');
 
-    Post::query()->onlyDrafts()->update(['updated_at' => now()->subDays(8)]);
+        expect($store->getCreatePageStore())->toBeInstanceOf(LocalStorageStore::class);
+    });
 
-    expect($store->get(editContext($post)))->toBeNull();
+    it('uses the database store when the default store is laravel-drafts', function (): void {
+        config()->set('filament-draft-recovery.store', 'laravel-drafts');
+
+        $store = DraftRecovery::driver('laravel-drafts');
+
+        expect($store->getCreatePageStore())->toBeInstanceOf(DatabaseStore::class);
+    });
 });

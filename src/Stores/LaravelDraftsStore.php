@@ -1,46 +1,47 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Oddvalue\FilamentDraftRecovery\Stores;
 
-use Illuminate\Database\Eloquent\Builder;
+use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Schema;
 use Oddvalue\FilamentDraftRecovery\Contracts\DraftStore;
+use Oddvalue\FilamentDraftRecovery\Contracts\ResolvesCreatePageStore;
 use Oddvalue\FilamentDraftRecovery\Data\DraftContext;
 use Oddvalue\FilamentDraftRecovery\Data\RecoveredDraft;
 use Oddvalue\LaravelDrafts\Concerns\HasDrafts;
 use RuntimeException;
 
 /**
- * Stores drafts through oddvalue/laravel-drafts, directly on the model being
- * edited — the page's model must use the HasDrafts trait.
+ * Stores edit-page drafts through oddvalue/laravel-drafts' first-class auto
+ * draft feature, directly on the model being edited — the page's model must
+ * use the HasDrafts trait and auto drafts must be enabled
+ * (drafts.auto_drafts.enabled).
  *
- * - Edit pages: auto-saves upsert a single "auto" draft row per record — an
- *   unpublished revision that is NOT flagged as current (the record keeps its
- *   is_current flag and any intentional current draft is untouched). It reads
- *   as the record's latest partial draft and is updated in place on every
- *   auto-save, so no revision churn.
- * - Create pages: the first auto-save creates an unpublished draft record
- *   (createDraft) which subsequent auto-saves update in place; recovery finds
- *   the user's latest unpublished draft of the model.
+ * Each auto-save calls saveAsAutoDraft() on the record: a single, quietly
+ * upserted working copy that is never the current draft, never spawns
+ * revisions, and reads back via the record's autoDraft() relation.
  *
- * The auto draft is recognised by the flag combination unpublished +
- * not-current + null published_at (ordinary revision copies of a published
- * record retain its published_at).
+ * Auto drafts only exist for existing records, so create-page drafts are
+ * delegated to another store (the "create page store"): the
+ * filament-draft-recovery.laravel-drafts.create_store config value, falling
+ * back to the default store (or "database" when the default is this store).
  *
  * Saves are best-effort: a payload that violates database constraints (e.g.
  * required columns not yet filled in) is skipped and retried on the next
  * auto-save.
- *
- * Note: clearing drafts deletes only the auto draft row (edit) or the user's
- * unpublished draft record (create) via query deletes, so the published
- * record, intentional drafts, and revision history are never touched.
  */
-class LaravelDraftsStore implements DraftStore
+class LaravelDraftsStore implements DraftStore, ResolvesCreatePageStore
 {
+    /**
+     * @param  (Closure(): DraftStore)|null  $createPageStore
+     */
     public function __construct(
         protected int $expiryDays = 7,
+        protected ?Closure $createPageStore = null,
     ) {
         if (! trait_exists(HasDrafts::class)) {
             // Unreachable when the suggested dependency is installed, as it
@@ -58,30 +59,57 @@ class LaravelDraftsStore implements DraftStore
         return false;
     }
 
+    /**
+     * The store handling create-page drafts, since auto drafts require an
+     * existing record.
+     */
+    public function getCreatePageStore(): DraftStore
+    {
+        $store = $this->createPageStore instanceof Closure ? ($this->createPageStore)() : new DatabaseStore(expiryDays: $this->expiryDays);
+
+        if ($store instanceof self) {
+            throw new RuntimeException(
+                'The laravel-drafts draft store cannot delegate create page drafts to itself — configure filament-draft-recovery.laravel-drafts.create_store with a different store.'
+            );
+        }
+
+        return $store;
+    }
+
     public function get(DraftContext $context): ?RecoveredDraft
     {
+        if (! $context->record instanceof Model) {
+            return $this->getCreatePageStore()->get($context);
+        }
+
         $this->assertDraftableModel($context);
 
-        $draft = $this->resolveDraft($context);
+        $autoDraft = $this->resolveAutoDraft($context->record);
 
-        if (! $draft instanceof Model) {
+        if (! $autoDraft instanceof Model) {
             return null;
         }
 
-        if ($draft->updated_at?->lt(now()->subDays($this->expiryDays))) {
+        if ($autoDraft->updated_at?->lt(now()->subDays($this->expiryDays))) {
             $this->forget($context);
 
             return null;
         }
 
         return new RecoveredDraft(
-            data: $this->payloadFromDraft($draft),
-            savedAt: $draft->updated_at,
+            data: $this->payloadFromDraft($autoDraft),
+            savedAt: $autoDraft->updated_at,
         );
     }
 
     public function put(DraftContext $context, array $data): void
     {
+        if (! $context->record instanceof Model) {
+            $this->getCreatePageStore()->put($context, $data);
+
+            return;
+        }
+
         $this->assertDraftableModel($context);
 
         $attributes = $this->attributesFromPayload($context, $data);
@@ -91,19 +119,7 @@ class LaravelDraftsStore implements DraftStore
         }
 
         try {
-            if ($context->record instanceof Model) {
-                $this->upsertAutoDraft($context->record, $attributes);
-
-                return;
-            }
-
-            if (($existing = $this->resolveCreatePageDraft($context)) instanceof Model) {
-                $existing->withoutRevision()->fill($attributes)->save();
-
-                return;
-            }
-
-            ($context->modelClass)::createDraft($attributes);
+            $context->record->saveAsAutoDraft($attributes);
         } catch (QueryException) {
             // Best-effort: incomplete form state can violate column
             // constraints — the next auto-save will try again.
@@ -112,95 +128,23 @@ class LaravelDraftsStore implements DraftStore
 
     public function forget(DraftContext $context): void
     {
-        $this->assertDraftableModel($context);
-
-        if ($context->record instanceof Model) {
-            $autoDraft = $this->resolveAutoDraft($context->record);
-
-            if ($autoDraft instanceof Model) {
-                // Query delete on purpose: Eloquent deletes on a HasDrafts
-                // model cascade to every revision sharing the uuid, including
-                // the published row.
-                $autoDraft->newModelQuery()->whereKey($autoDraft->getKey())->delete();
-            }
+        if (! $context->record instanceof Model) {
+            $this->getCreatePageStore()->forget($context);
 
             return;
         }
 
-        $draft = $this->resolveCreatePageDraft($context);
+        $this->assertDraftableModel($context);
 
-        if ($draft instanceof Model) {
-            $draft->newModelQuery()->whereKey($draft->getKey())->delete();
-        }
-    }
-
-    protected function resolveDraft(DraftContext $context): ?Model
-    {
-        if ($context->record instanceof Model) {
-            return $this->resolveAutoDraft($context->record);
-        }
-
-        return $this->resolveCreatePageDraft($context);
+        $context->record->discardAutoDraft();
     }
 
     /**
-     * The record's auto draft: an unpublished, not-current revision with a
-     * null published_at. Saved quietly so laravel-drafts' model events never
-     * promote it to the current draft or spawn revisions.
+     * The record's auto draft, as maintained by laravel-drafts.
      */
     public function resolveAutoDraft(Model $record): ?Model
     {
-        return $record->newQuery()
-            ->withDrafts()
-            ->where($record->getUuidColumn(), $record->{$record->getUuidColumn()})
-            ->where($record->getIsPublishedColumn(), false)
-            ->where($record->getIsCurrentColumn(), false)
-            ->whereNull($record->getPublishedAtColumn())
-            ->latest('updated_at')
-            ->first();
-    }
-
-    /**
-     * @param  array<string, mixed>  $attributes
-     */
-    protected function upsertAutoDraft(Model $record, array $attributes): void
-    {
-        if (($existing = $this->resolveAutoDraft($record)) instanceof Model) {
-            $existing->forceFill($attributes);
-            $existing->saveQuietly();
-
-            return;
-        }
-
-        $autoDraft = $record->replicate();
-        $autoDraft->forceFill([
-            ...$attributes,
-            $record->getIsCurrentColumn() => false,
-            $record->getIsPublishedColumn() => false,
-            $record->getPublishedAtColumn() => null,
-        ]);
-        $autoDraft->saveQuietly();
-    }
-
-    /**
-     * The user's latest unpublished, current draft record of the model — a
-     * draft created from a create page rather than a revision of an existing
-     * record.
-     */
-    protected function resolveCreatePageDraft(DraftContext $context): ?Model
-    {
-        /** @var Model&HasDrafts $model */
-        $model = new ($context->modelClass);
-
-        return ($context->modelClass)::query()
-            ->onlyDrafts()
-            ->current()
-            ->when(
-                $context->userId !== null,
-                fn (Builder $query) => $query->where($model->getPublisherColumns()['id'], $context->userId),
-            )
-            ->latest('updated_at')
-            ->first();
+        return $record->autoDraft()->first();
     }
 
     /**
@@ -248,6 +192,7 @@ class LaravelDraftsStore implements DraftStore
             $model->getUuidColumn(),
             $model->getIsCurrentColumn(),
             $model->getIsPublishedColumn(),
+            $model->getIsAutoColumn(),
             $model->getPublishedAtColumn(),
             ...array_values($model->getPublisherColumns()),
         ];
@@ -263,6 +208,12 @@ class LaravelDraftsStore implements DraftStore
         if (! in_array(HasDrafts::class, class_uses_recursive($context->modelClass))) {
             throw new RuntimeException(
                 sprintf('The laravel-drafts draft store requires [%s] to use the ', $context->modelClass) . HasDrafts::class . ' trait.'
+            );
+        }
+
+        if (! ($context->modelClass)::autoDraftsEnabled()) {
+            throw new RuntimeException(
+                'The laravel-drafts draft store requires auto drafts to be enabled — set the drafts.auto_drafts.enabled config option to true.'
             );
         }
     }
