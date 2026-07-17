@@ -33,7 +33,7 @@
         "larastan/larastan": "^3.0",
         "laravel/pint": "^1.0",
         "nunomaduro/collision": "^8.0",
-        "oddvalue/laravel-drafts": "dev-main",
+        "oddvalue/laravel-drafts": "^3.2",
         "orchestra/testbench": "^9.0|^10.0|^11.0",
         "pestphp/pest": "^3.7|^4.0",
         "pestphp/pest-plugin-arch": "^3.0|^4.0",
@@ -45,7 +45,7 @@
         "rector/rector": "^2.0"
     },
     "suggest": {
-        "oddvalue/laravel-drafts": "Required to use the laravel-drafts storage driver (^3.1)"
+        "oddvalue/laravel-drafts": "Required to use the laravel-drafts storage driver (^3.2)"
     },
     "autoload": {
         "psr-4": {

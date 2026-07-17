@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "673085396b899706a92f84c655c73f8a",
+    "content-hash": "367620a6412ade5814c21d38590f1a71",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -9279,7 +9279,7 @@
         },
         {
             "name": "oddvalue/laravel-drafts",
-            "version": "dev-main",
+            "version": "v3.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/oddvalue/laravel-drafts.git",
@@ -9313,7 +9313,6 @@
                 "spatie/pest-plugin-test-time": "^1.0|^2.0",
                 "spatie/ray": "^1.37"
             },
-            "default-branch": true,
             "type": "library",
             "extra": {
                 "laravel": {
@@ -9352,7 +9351,7 @@
             ],
             "support": {
                 "issues": "https://github.com/oddvalue/laravel-drafts/issues",
-                "source": "https://github.com/oddvalue/laravel-drafts/tree/main"
+                "source": "https://github.com/oddvalue/laravel-drafts/tree/v3.2.0"
             },
             "funding": [
                 {
@@ -12662,9 +12661,7 @@
     ],
     "aliases": [],
     "minimum-stability": "dev",
-    "stability-flags": {
-        "oddvalue/laravel-drafts": 20
-    },
+    "stability-flags": {},
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {
