@@ -145,7 +145,20 @@ protected function draftRecoveryExcludedFields(): array
 }
 ```
 
-Livewire temporary upload markers are always stripped — file uploads cannot be restored from a draft.
+### File uploads
+
+When a file is selected in a `FileUpload` field, Livewire immediately moves the bytes to its temporary upload disk; the form state only holds a marker pointing at that temporary file. Whether a draft can bring a pending (not yet saved) upload back depends on the driver:
+
+- **Server-side drivers** (`database`, custom): pending upload markers are kept in the draft. At recovery time each marker is re-checked against Livewire's temporary upload disk — if the temporary file still exists, the upload is restored as a pending upload (and is saved normally when the form is submitted); if Livewire has already pruned it, that upload is silently dropped and the rest of the draft still recovers.
+- **`local-storage`**: markers are always stripped. The browser cannot verify that the server-side temporary file still exists, and restoring a dead marker would break the upload field.
+- **`laravel-drafts`**: draft data is intersected with the model's real table columns, and pending upload state never matches a column value — pending uploads are not preserved by this driver.
+
+Files **already attached to the record** (edit pages) are unaffected by all of this: they are stored paths, not temporary markers, and always survive drafting.
+
+**Limitations**
+
+- The recovery window for pending uploads is bounded by Livewire's temporary file lifetime, not by `expiry_days`. On local disks Livewire deletes temporary uploads older than **24 hours** (triggered whenever a new upload happens); on S3 you configure expiry via a bucket lifecycle rule. A draft recovered later restores everything *except* its pending uploads.
+- The draft only references Livewire's temporary file — it does not copy the bytes. In multi-server setups the temporary upload disk (`livewire.temporary_file_upload.disk`) must be shared (e.g. S3) for recovery to find the file.
 
 ## Pages with their own lifecycle hooks
 
@@ -171,6 +184,7 @@ The same applies to `getFooter()`: if your page overrides it, include the view f
 - On return, a differing draft triggers a persistent Filament notification with **Recover draft** / **Discard** actions. Recovery merges the draft over the current form state.
 - On successful save the page dispatches `draft-recovery-clear`, removing the draft and stopping the auto-save timers.
 - Drafts expire after `expiry_days` (default 7); expired localStorage entries are pruned on page load.
+- With a server-side driver, pending file uploads are drafted as Livewire temporary upload markers and validated against the temporary upload disk at recovery time — see [File uploads](#file-uploads).
 
 ## Testing
 
