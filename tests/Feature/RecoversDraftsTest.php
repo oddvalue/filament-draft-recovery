@@ -2,6 +2,9 @@
 
 use Filament\Facades\Filament;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
+use Livewire\Features\SupportFileUploads\FileUploadConfiguration;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Oddvalue\FilamentDraftRecovery\Data\DraftContext;
 use Oddvalue\FilamentDraftRecovery\DraftRecoveryPlugin;
 use Oddvalue\FilamentDraftRecovery\Facades\DraftRecovery;
@@ -22,6 +25,17 @@ function pageContext(string $key, ?Model $record = null): DraftContext
         record: $record,
         userId: auth()->id(),
     );
+}
+
+/**
+ * Writes a file to Livewire's temporary upload disk and returns the marker a
+ * pending upload leaves in the form state.
+ */
+function fakePendingUpload(string $filename): string
+{
+    FileUploadConfiguration::storage()->put(FileUploadConfiguration::path($filename), 'pending-upload-contents');
+
+    return 'livewire-file:' . $filename;
 }
 
 it('injects the draft recovery component in client mode with a create page key', function (): void {
@@ -248,6 +262,98 @@ describe('server mode (database store)', function (): void {
             ->assertNotNotified();
 
         expect(DraftRecovery::driver()->get(pageContext($key, $post)))->toBeNull();
+    });
+});
+
+describe('pending upload recovery (server mode)', function (): void {
+    beforeEach(function (): void {
+        config()->set('filament-draft-recovery.store', 'database');
+
+        Storage::fake(FileUploadConfiguration::disk());
+    });
+
+    it('recovers a pending upload while its temporary file lives', function (): void {
+        $user = actingAsTestUser();
+
+        $key = sprintf('filament-draft:%s:testing:posts:create', $user->id);
+        DraftRecovery::driver()->put(pageContext($key), [
+            'title' => 'Drafted title',
+            'attachment' => ['uuid-1' => fakePendingUpload('pending.png')],
+        ]);
+
+        $component = livewire(CreatePost::class)
+            ->assertNotified()
+            ->dispatch('draft-recovery-restore', key: $key)
+            ->assertSchemaStateSet(['title' => 'Drafted title']);
+
+        $attachment = collect($component->instance()->data['attachment'] ?? []);
+
+        expect($attachment->count())->toBe(1)
+            ->and($attachment->first())->toBeInstanceOf(TemporaryUploadedFile::class);
+    });
+
+    it('drops a pending upload whose temporary file has been pruned', function (): void {
+        $user = actingAsTestUser();
+
+        $key = sprintf('filament-draft:%s:testing:posts:create', $user->id);
+        DraftRecovery::driver()->put(pageContext($key), [
+            'title' => 'Drafted title',
+            'attachment' => ['uuid-1' => 'livewire-file:pruned.png'],
+        ]);
+
+        $component = livewire(CreatePost::class)
+            ->dispatch('draft-recovery-restore', key: $key)
+            ->assertSchemaStateSet(['title' => 'Drafted title']);
+
+        expect(collect($component->instance()->data['attachment'] ?? [])->filter()->all())->toBe([]);
+    });
+
+    it('recovers only the surviving files of a multi file upload', function (): void {
+        $user = actingAsTestUser();
+
+        fakePendingUpload('kept.png');
+
+        $key = sprintf('filament-draft:%s:testing:posts:create', $user->id);
+        DraftRecovery::driver()->put(pageContext($key), [
+            'title' => 'Drafted title',
+            'attachment' => 'livewire-files:' . json_encode(['kept.png', 'pruned.png']),
+        ]);
+
+        $component = livewire(CreatePost::class)
+            ->dispatch('draft-recovery-restore', key: $key);
+
+        $attachment = collect($component->instance()->data['attachment'] ?? [])->flatten();
+
+        expect($attachment->count())->toBe(1)
+            ->and($attachment->first())->toBeInstanceOf(TemporaryUploadedFile::class);
+    });
+
+    it('restores stored file paths through the regular fill path', function (): void {
+        $user = actingAsTestUser();
+
+        $key = sprintf('filament-draft:%s:testing:posts:create', $user->id);
+        DraftRecovery::driver()->put(pageContext($key), [
+            'title' => 'Drafted title',
+            'attachment' => ['uuid-1' => 'already-stored.png'],
+        ]);
+
+        livewire(CreatePost::class)
+            ->dispatch('draft-recovery-restore', key: $key)
+            ->assertSchemaStateSet(['title' => 'Drafted title']);
+    });
+
+    it('does not offer recovery when a draft only holds pruned uploads', function (): void {
+        $user = actingAsTestUser();
+
+        $key = sprintf('filament-draft:%s:testing:posts:create', $user->id);
+        DraftRecovery::driver()->put(pageContext($key), [
+            'attachment' => ['uuid-1' => 'livewire-file:pruned.png'],
+        ]);
+
+        livewire(CreatePost::class)
+            ->assertNotNotified();
+
+        expect(DraftRecovery::driver()->get(pageContext($key)))->toBeNull();
     });
 });
 

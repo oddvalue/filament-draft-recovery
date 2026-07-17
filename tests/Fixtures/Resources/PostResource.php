@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources;
 
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
@@ -25,6 +26,10 @@ class PostResource extends Resource
             TextInput::make('title')
                 ->required(),
             Textarea::make('body'),
+            // Not a posts column — kept out of the saved state so the
+            // fixture table needs no attachment column.
+            FileUpload::make('attachment')
+                ->dehydrated(false),
         ]);
     }
 
