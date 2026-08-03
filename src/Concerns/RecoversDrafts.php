@@ -8,6 +8,8 @@ use Filament\Resources\Pages\CreateRecord;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\On;
+use Livewire\Features\SupportFileUploads\FileUploadConfiguration;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Oddvalue\FilamentDraftRecovery\Contracts\DraftStore;
 use Oddvalue\FilamentDraftRecovery\Contracts\ResolvesCreatePageStore;
 use Oddvalue\FilamentDraftRecovery\Data\DraftContext;
@@ -34,6 +36,12 @@ use Oddvalue\FilamentDraftRecovery\Facades\DraftRecovery;
  */
 trait RecoversDrafts
 {
+    /**
+     * Sentinel for a drafted upload whose temporary file no longer exists.
+     * NUL-prefixed so it can never collide with real form data.
+     */
+    private const STALE_DRAFT_UPLOAD = "\0filament-draft-recovery:stale-upload";
+
     public function getDraftStore(): DraftStore
     {
         $store = DraftRecovery::driver($this->getDraftStoreName());
@@ -112,7 +120,7 @@ trait RecoversDrafts
         }
 
         $currentData = $this->stripDraftRecoveryExcludedFields($this->data ?? []);
-        $draftData = $this->stripDraftRecoveryExcludedFields($draft->data);
+        $draftData = $this->resolveDraftRecoveryUploads($this->stripDraftRecoveryExcludedFields($draft->data));
 
         // Merging the draft over the current state changing nothing means the
         // draft holds nothing worth recovering (mirrors the client-side check).
@@ -176,10 +184,51 @@ trait RecoversDrafts
             return;
         }
 
+        $draftData = $this->resolveDraftRecoveryUploads($draft->data);
+
+        $pendingUploads = array_filter($draftData, fn (mixed $value): bool => $this->holdsPendingUpload($value));
+
         $this->form->fill([
             ...$this->data ?? [],
-            ...$draft->data,
+            ...array_diff_key($draftData, $pendingUploads),
         ]);
+
+        // Filling a file upload field treats every state entry as a stored
+        // file path and checks it against the component's disk, which would
+        // discard pending uploads — their state is re-applied directly.
+        foreach ($pendingUploads as $field => $value) {
+            data_set($this->data, $field, $value);
+        }
+    }
+
+    /**
+     * Checked against the storage disk rather than via
+     * TemporaryUploadedFile::exists() — constructing a TemporaryUploadedFile
+     * touches its path into existence in test environments, which would make
+     * every dead marker look alive.
+     */
+    protected function pendingUploadExists(string $filename): bool
+    {
+        return FileUploadConfiguration::storage()->exists(FileUploadConfiguration::path($filename));
+    }
+
+    protected function holdsPendingUpload(mixed $value): bool
+    {
+        if ($value instanceof TemporaryUploadedFile) {
+            return true;
+        }
+
+        if (! is_array($value)) {
+            return false;
+        }
+
+        foreach ($value as $item) {
+            if ($this->holdsPendingUpload($item)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     #[On('draft-recovery-discard')]
@@ -267,5 +316,65 @@ trait RecoversDrafts
     protected function stripDraftRecoveryExcludedFields(array $data): array
     {
         return array_diff_key($data, array_flip($this->draftRecoveryExcludedFields()));
+    }
+
+    /**
+     * Server-side stores persist pending (not yet saved) file uploads as
+     * Livewire temporary upload markers. The temporary file a marker points
+     * to is short-lived — Livewire prunes its temporary upload directory
+     * independently of the draft's expiry — so markers are re-checked at
+     * recovery time: live ones are rehydrated into TemporaryUploadedFile
+     * instances, dead ones are dropped together with any upload state left
+     * empty by the removal, letting the rest of the draft recover cleanly.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function resolveDraftRecoveryUploads(array $data): array
+    {
+        $resolved = $this->resolveDraftRecoveryUploadValue($data);
+
+        return is_array($resolved) ? $resolved : [];
+    }
+
+    protected function resolveDraftRecoveryUploadValue(mixed $value): mixed
+    {
+        if (is_string($value) && str_starts_with($value, 'livewire-file:')) {
+            $filename = substr($value, strlen('livewire-file:'));
+
+            return $this->pendingUploadExists($filename)
+                ? TemporaryUploadedFile::createFromLivewire($filename)
+                : self::STALE_DRAFT_UPLOAD;
+        }
+
+        if (is_string($value) && str_starts_with($value, 'livewire-files:')) {
+            $files = array_map(
+                fn (string $filename): TemporaryUploadedFile => TemporaryUploadedFile::createFromLivewire($filename),
+                array_values(array_filter(
+                    (array) json_decode(substr($value, strlen('livewire-files:')), true),
+                    fn ($filename): bool => is_string($filename) && $this->pendingUploadExists($filename),
+                )),
+            );
+
+            return $files === [] ? self::STALE_DRAFT_UPLOAD : $files;
+        }
+
+        if (! is_array($value) || $value === []) {
+            return $value;
+        }
+
+        $resolved = [];
+
+        foreach ($value as $key => $item) {
+            $item = $this->resolveDraftRecoveryUploadValue($item);
+
+            if ($item !== self::STALE_DRAFT_UPLOAD) {
+                $resolved[$key] = $item;
+            }
+        }
+
+        // Upload state left empty by dead markers is dropped entirely so the
+        // form's current value survives the recovery merge.
+        return $resolved === [] ? self::STALE_DRAFT_UPLOAD : $resolved;
     }
 }

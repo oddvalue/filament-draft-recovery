@@ -101,16 +101,16 @@ export default function draftRecovery(config) {
                 delete data[excludedField]
             }
 
-            return this.stripTemporaryUploads(data)
+            // Pending upload markers survive only in server mode, where the
+            // server can verify the temporary file still exists before a
+            // draft is restored; the browser cannot, so a client-mode draft
+            // holding a dead marker would break the upload field.
+            return config.mode === 'server' ? data : this.stripTemporaryUploads(data)
         },
 
-        /**
-         * Livewire temporary upload markers ("livewire-file:…") cannot be
-         * restored from a draft, so they are never persisted.
-         */
         stripTemporaryUploads(value) {
             if (typeof value === 'string') {
-                return value.startsWith('livewire-file:') ? null : value
+                return value.startsWith('livewire-file:') || value.startsWith('livewire-files:') ? null : value
             }
 
             if (Array.isArray(value)) {
