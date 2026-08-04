@@ -30,6 +30,9 @@ class PostResource extends Resource
             // fixture table needs no attachment column.
             FileUpload::make('attachment')
                 ->dehydrated(false),
+            TextInput::make('access_code')
+                ->password()
+                ->dehydrated(false),
         ]);
     }
 

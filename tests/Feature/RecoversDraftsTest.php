@@ -58,6 +58,22 @@ it('scopes the edit page key to the record', function (): void {
         ->assertSeeHtml(sprintf('filament-draft:%s:testing:posts:edit:%s', $user->id, $post->getKey()));
 });
 
+it('passes the default save debounce to the component', function (): void {
+    actingAsTestUser();
+
+    livewire(CreatePost::class)
+        ->assertSeeHtml('\u0022saveDebounceMilliseconds\u0022:2000');
+});
+
+it('passes a configured save debounce to the component', function (): void {
+    actingAsTestUser();
+
+    config()->set('filament-draft-recovery.save_debounce_milliseconds', 5000);
+
+    livewire(CreatePost::class)
+        ->assertSeeHtml('\u0022saveDebounceMilliseconds\u0022:5000');
+});
+
 it('does not persist server drafts when the store is client side', function (): void {
     actingAsTestUser();
 
@@ -83,6 +99,61 @@ it('uses the page level draft store override', function (): void {
 
     livewire(CreatePostWithPageStore::class)
         ->assertSeeHtml('\u0022mode\u0022:\u0022server\u0022');
+});
+
+it('passes the current user key prefix to the component', function (): void {
+    $user = actingAsTestUser();
+
+    livewire(CreatePost::class)
+        ->assertSeeHtml(sprintf('\u0022userKeyPrefix\u0022:\u0022filament-draft:%s:\u0022', $user->id));
+});
+
+it('merges config, page and password input exclusions into the component config', function (): void {
+    actingAsTestUser();
+
+    config()->set('filament-draft-recovery.excluded_fields', ['api_token']);
+
+    livewire(CreatePostWithPageStore::class)
+        ->assertSeeHtml('\u0022api_token\u0022')
+        ->assertSeeHtml('\u0022internal_notes\u0022')
+        ->assertSeeHtml('\u0022items.*.card_number\u0022')
+        ->assertSeeHtml('\u0022access_code\u0022');
+});
+
+it('excludes the config defaults and password inputs without any page config', function (): void {
+    actingAsTestUser();
+
+    livewire(CreatePost::class)
+        ->assertSeeHtml('\u0022password\u0022')
+        ->assertSeeHtml('\u0022access_code\u0022');
+});
+
+it('strips excluded fields before persisting a server draft', function (): void {
+    $user = actingAsTestUser();
+
+    livewire(CreatePostWithPageStore::class)
+        ->call('storeRecoverableDraft', [
+            'title' => 'Drafted title',
+            'password' => 'hunter2',
+            'access_code' => 'shh',
+            'internal_notes' => 'private',
+            'items' => [
+                ['name' => 'First', 'card_number' => '4242'],
+                ['name' => 'Second', 'card_number' => '4243'],
+            ],
+        ]);
+
+    $draft = DraftRecovery::driver('database')->get(
+        pageContext(sprintf('filament-draft:%s:testing:posts:create', $user->id)),
+    );
+
+    expect($draft->data)->toBe([
+        'title' => 'Drafted title',
+        'items' => [
+            ['name' => 'First'],
+            ['name' => 'Second'],
+        ],
+    ]);
 });
 
 it('uses the panel plugin draft store when registered', function (): void {

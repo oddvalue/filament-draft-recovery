@@ -18,6 +18,14 @@ parameters:
         -
             message: "#Called 'env' outside of the config directory#"
             path: config/filament-draft-recovery.php
+        # Larastan validates literal view names by calling view()->exists()
+        # inside its analysis app, which fails to resolve the package's view
+        # namespace while analysing the very provider that registers it (the
+        # same literal passes analysis in RecoversDrafts). The view exists and
+        # rendering it is covered by PurgeOnLoginTest.
+        -
+            message: "#Parameter \\#1 \\$view of function view expects view-string#"
+            path: src/FilamentDraftRecoveryServiceProvider.php
         # The laravel-drafts store works with arbitrary host models whose
         # HasDrafts methods and scopes only exist at runtime (asserted in
         # assertDraftableModel()) — the unknown-method ignores below make the

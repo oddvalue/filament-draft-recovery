@@ -18,7 +18,15 @@ class RecoverableDraft extends Model
 
     protected $guarded = [];
 
-    protected $casts = [
-        'payload' => 'array',
-    ];
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'payload' => config('filament-draft-recovery.database.encrypt') === true
+                ? 'encrypted:array'
+                : 'array',
+        ];
+    }
 }

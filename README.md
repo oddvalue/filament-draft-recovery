@@ -10,14 +10,14 @@
 
 Auto-save draft & crash recovery for Filament v4 create/edit pages, with swappable storage drivers. 100% test coverage, enforced in CI.
 
-While a user edits a create or edit form, the form state is auto-saved (debounced, ~2s). If their browser crashes, the tab closes, or the session expires, returning to the page shows a persistent notification offering to **recover** or **discard** the draft. Drafts are cleared on a successful save and expire after 7 days.
+While a user edits a create or edit form, the form state is auto-saved (debounced, 2s by default). If their browser crashes, the tab closes, or the session expires, returning to the page shows a persistent notification offering to **recover** or **discard** the draft. Drafts are cleared on a successful save and expire after 7 days.
 
 ## Storage drivers
 
 | Driver | Where drafts live | Notes |
 |---|---|---|
-| `local-storage` (default) | The user's browser localStorage | Zero server storage; drafts are plaintext on the user's machine |
-| `database` | The `recoverable_drafts` table | Drafts follow the user across devices |
+| `local-storage` (default) | The user's browser localStorage | Zero server storage; drafts are plaintext on the user's machine — see [Security](#security--sensitive-data) |
+| `database` | The `recoverable_drafts` table | Drafts follow the user across devices; payloads can be [encrypted at rest](#encrypting-database-drafts) |
 | `laravel-drafts` | **On the model being edited**, via [oddvalue/laravel-drafts](https://github.com/oddvalue/laravel-drafts) | Auto-saves become draft revisions of the record itself |
 
 Custom drivers can be registered with `DraftRecovery::extend()`.
@@ -134,16 +134,60 @@ Then select it like any built-in driver (`'store' => 'redis'`, `DraftRecoveryPlu
 
 Every method receives a `DraftContext` carrying the unique `key` (always sufficient for key/value stores) plus the page's `modelClass`, `operation` (`create`/`edit`), `record` (edit pages), and `userId` — everything a record-based store needs.
 
-### Excluding sensitive fields
+### Save debounce
 
-Drafts may be stored as plaintext (especially with `local-storage`). Exclude anything sensitive:
+Auto-saves fire after the user stops typing for `save_debounce_milliseconds` (default 2000). Change the default in the config:
+
+```php
+'save_debounce_milliseconds' => 5000,
+```
+
+Or per page:
+
+```php
+protected function draftRecoverySaveDebounceMilliseconds(): int
+{
+    return 5000;
+}
+```
+
+### Security & sensitive data
+
+Drafts are snapshots of raw form state. With the default `local-storage` driver they live **in plaintext in the browser's localStorage** — readable by anyone with access to the machine, the browser profile, or any script running on the page. No client-side scheme can change that, so treat `local-storage` as suitable for non-sensitive form data only, and point resources that handle sensitive data at a server-side driver:
+
+```php
+protected ?string $draftStore = 'database';
+```
+
+Safeguards that apply out of the box:
+
+- **Password inputs are never drafted.** Any `TextInput` with `->password()` in the form schema is excluded automatically, in every driver.
+- **Common sensitive keys are excluded by default** via the `excluded_fields` config: `password`, `password_confirmation`, `current_password`, `token`, `api_token`, `secret`.
+- **Other users' leftovers are pruned.** When a draft-enabled page loads, localStorage drafts belonging to a different user of the same browser are removed.
+- **Logout purge.** An explicit logout (Laravel's `Logout` event) queues a short-lived cookie, and the next panel page render — normally the login redirect — clears all of the package's localStorage drafts (`purge_on_logout` config, enabled by default), so drafts never outlive a logout on a shared machine. Session expiry fires no `Logout` event, so drafts from an expired session stay recoverable. Server-side drafts are unaffected either way.
+
+### Excluding fields
+
+Exclusions merge from two places and apply to every driver, client- and server-side. Globally, in the config:
+
+```php
+'excluded_fields' => [
+    // ...the defaults above,
+    'billing.card_number',
+    'members.*.ssn',
+],
+```
+
+Per page, additive to the config:
 
 ```php
 protected function draftRecoveryExcludedFields(): array
 {
-    return ['password', 'api_token'];
+    return ['internal_notes', 'items.*.access_code'];
 }
 ```
+
+Patterns use dot notation to reach nested state; `*` matches a single segment, such as repeater or builder item keys.
 
 ### File uploads
 
@@ -159,6 +203,19 @@ Files **already attached to the record** (edit pages) are unaffected by all of t
 
 - The recovery window for pending uploads is bounded by Livewire's temporary file lifetime, not by `expiry_days`. On local disks Livewire deletes temporary uploads older than **24 hours** (triggered whenever a new upload happens); on S3 you configure expiry via a bucket lifecycle rule. A draft recovered later restores everything *except* its pending uploads.
 - The draft only references Livewire's temporary file — it does not copy the bytes. In multi-server setups the temporary upload disk (`livewire.temporary_file_upload.disk`) must be shared (e.g. S3) for recovery to find the file.
+
+### Encrypting database drafts
+
+The `database` driver stores payloads as plain JSON by default. To encrypt them at rest (Laravel's `encrypted:array` cast, using your app key):
+
+```php
+'database' => [
+    'model' => RecoverableDraft::class,
+    'encrypt' => true,
+],
+```
+
+The `payload` column must be a text-type column — ciphertext does not fit a MySQL `json` column. The shipped migration uses `longText`; if you published an earlier version of the migration that used `json`, change the column type before enabling encryption.
 
 ## Pages with their own lifecycle hooks
 
@@ -179,11 +236,11 @@ The same applies to `getFooter()`: if your page overrides it, include the view f
 
 ## How it works
 
-- The Alpine component (injected via the page footer) snapshots the Livewire form state (`$wire.data`) on input/change, debounced by 2 seconds.
+- The Alpine component (injected via the page footer) snapshots the Livewire form state (`$wire.data`) on input/change, debounced by `save_debounce_milliseconds` (default 2 seconds).
 - With `local-storage`, drafts stay in the browser; with a server-side driver the payload is sent to the page via a Livewire call.
 - On return, a differing draft triggers a persistent Filament notification with **Recover draft** / **Discard** actions. Recovery merges the draft over the current form state.
 - On successful save the page dispatches `draft-recovery-clear`, removing the draft and stopping the auto-save timers.
-- Drafts expire after `expiry_days` (default 7); expired localStorage entries are pruned on page load.
+- Drafts expire after `expiry_days` (default 7); expired localStorage entries — and entries belonging to other users of the same browser — are pruned on page load, and logging out purges all of them (see [Security](#security--sensitive-data)).
 - With a server-side driver, pending file uploads are drafted as Livewire temporary upload markers and validated against the temporary upload disk at recovery time — see [File uploads](#file-uploads).
 
 ## Testing
