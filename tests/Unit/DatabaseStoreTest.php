@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\DB;
 use Oddvalue\FilamentDraftRecovery\Data\DraftContext;
 use Oddvalue\FilamentDraftRecovery\Models\RecoverableDraft;
 use Oddvalue\FilamentDraftRecovery\Stores\DatabaseStore;
@@ -60,6 +61,25 @@ it('ignores and prunes expired drafts', function (): void {
 
     expect($store->get(databaseContext('a-key')))->toBeNull()
         ->and(RecoverableDraft::query()->where('key', 'a-key')->exists())->toBeFalse();
+});
+
+it('stores the payload as plain json by default', function (): void {
+    (new DatabaseStore)->put(databaseContext('a-key'), ['title' => 'Readable']);
+
+    expect(DB::table('recoverable_drafts')->where('key', 'a-key')->value('payload'))
+        ->toContain('Readable');
+});
+
+it('stores the payload encrypted when database encryption is enabled', function (): void {
+    config()->set('filament-draft-recovery.database.encrypt', true);
+
+    $store = new DatabaseStore;
+
+    $store->put(databaseContext('a-key'), ['title' => 'Top secret']);
+
+    expect(DB::table('recoverable_drafts')->where('key', 'a-key')->value('payload'))
+        ->not->toContain('Top secret')
+        ->and($store->get(databaseContext('a-key'))->data)->toBe(['title' => 'Top secret']);
 });
 
 it('keys drafts independently', function (): void {

@@ -1,4 +1,4 @@
-const SAVE_DEBOUNCE_MILLISECONDS = 2000
+const DEFAULT_SAVE_DEBOUNCE_MILLISECONDS = 2000
 const FALLBACK_SAVE_INTERVAL_MILLISECONDS = 30000
 
 /**
@@ -41,18 +41,32 @@ export default function draftRecovery(config) {
                     this.offerRecovery()
                 }
 
-                document.addEventListener('livewire:initialized', offerRecoveryOnce, { once: true })
+                document.addEventListener(
+                    'livewire:initialized',
+                    offerRecoveryOnce,
+                    { once: true },
+                )
                 setTimeout(offerRecoveryOnce, 2000)
             }
 
+            const saveDebounceMilliseconds =
+                config.saveDebounceMilliseconds ??
+                DEFAULT_SAVE_DEBOUNCE_MILLISECONDS
+
             const scheduleSave = () => {
                 clearTimeout(this.saveTimeoutId)
-                this.saveTimeoutId = setTimeout(() => this.saveDraft(), SAVE_DEBOUNCE_MILLISECONDS)
+                this.saveTimeoutId = setTimeout(
+                    () => this.saveDraft(),
+                    saveDebounceMilliseconds,
+                )
             }
 
             document.addEventListener('input', scheduleSave)
             document.addEventListener('change', scheduleSave)
-            this.saveIntervalId = setInterval(() => this.saveDraft(), FALLBACK_SAVE_INTERVAL_MILLISECONDS)
+            this.saveIntervalId = setInterval(
+                () => this.saveDraft(),
+                FALLBACK_SAVE_INTERVAL_MILLISECONDS,
+            )
 
             window.addEventListener('draft-recovery-clear', (event) => {
                 const key = event.detail?.key ?? config.key
@@ -98,19 +112,51 @@ export default function draftRecovery(config) {
             const data = JSON.parse(JSON.stringify(this.$wire.data ?? {}))
 
             for (const excludedField of config.excludedFields ?? []) {
-                delete data[excludedField]
+                this.forgetField(data, excludedField.split('.'))
             }
 
             // Pending upload markers survive only in server mode, where the
             // server can verify the temporary file still exists before a
             // draft is restored; the browser cannot, so a client-mode draft
             // holding a dead marker would break the upload field.
-            return config.mode === 'server' ? data : this.stripTemporaryUploads(data)
+            return config.mode === 'server'
+                ? data
+                : this.stripTemporaryUploads(data)
+        },
+
+        /**
+         * Removes every value matching the dot-notation pattern segments;
+         * "*" matches any single segment (e.g. repeater item keys). Mirrors
+         * forgetDraftRecoveryField() in the RecoversDrafts trait.
+         */
+        forgetField(value, segments) {
+            if (value === null || typeof value !== 'object') {
+                return
+            }
+
+            const [segment, ...remainingSegments] = segments
+            const keys =
+                segment === '*'
+                    ? Object.keys(value)
+                    : segment in value
+                      ? [segment]
+                      : []
+
+            for (const key of keys) {
+                if (remainingSegments.length === 0) {
+                    delete value[key]
+                } else {
+                    this.forgetField(value[key], remainingSegments)
+                }
+            }
         },
 
         stripTemporaryUploads(value) {
             if (typeof value === 'string') {
-                return value.startsWith('livewire-file:') || value.startsWith('livewire-files:') ? null : value
+                return value.startsWith('livewire-file:') ||
+                    value.startsWith('livewire-files:')
+                    ? null
+                    : value
             }
 
             if (Array.isArray(value)) {
@@ -119,7 +165,10 @@ export default function draftRecovery(config) {
 
             if (value !== null && typeof value === 'object') {
                 return Object.fromEntries(
-                    Object.entries(value).map(([key, item]) => [key, this.stripTemporaryUploads(item)]),
+                    Object.entries(value).map(([key, item]) => [
+                        key,
+                        this.stripTemporaryUploads(item),
+                    ]),
                 )
             }
 
@@ -165,10 +214,13 @@ export default function draftRecovery(config) {
             }
 
             try {
-                window.localStorage.setItem(config.key, JSON.stringify({
-                    savedAt: Date.now(),
-                    data: JSON.parse(serializedState),
-                }))
+                window.localStorage.setItem(
+                    config.key,
+                    JSON.stringify({
+                        savedAt: Date.now(),
+                        data: JSON.parse(serializedState),
+                    }),
+                )
 
                 this.lastSavedState = serializedState
             } catch {
@@ -178,9 +230,16 @@ export default function draftRecovery(config) {
 
         readDraft() {
             try {
-                const draft = JSON.parse(window.localStorage.getItem(config.key))
+                const draft = JSON.parse(
+                    window.localStorage.getItem(config.key),
+                )
 
-                if (! draft || typeof draft !== 'object' || ! draft.data || ! draft.savedAt) {
+                if (
+                    !draft ||
+                    typeof draft !== 'object' ||
+                    !draft.data ||
+                    !draft.savedAt
+                ) {
                     return null
                 }
 
@@ -205,14 +264,20 @@ export default function draftRecovery(config) {
         },
 
         isExpired(savedAt) {
-            return Date.now() - savedAt > config.expiryDays * 24 * 60 * 60 * 1000
+            return (
+                Date.now() - savedAt > config.expiryDays * 24 * 60 * 60 * 1000
+            )
         },
 
         pruneExpiredDrafts() {
             try {
                 const keys = []
 
-                for (let index = 0; index < window.localStorage.length; index++) {
+                for (
+                    let index = 0;
+                    index < window.localStorage.length;
+                    index++
+                ) {
                     const key = window.localStorage.key(index)
 
                     if (key?.startsWith(config.prefix)) {
@@ -221,10 +286,24 @@ export default function draftRecovery(config) {
                 }
 
                 for (const key of keys) {
-                    try {
-                        const draft = JSON.parse(window.localStorage.getItem(key))
+                    // Drafts belonging to another user of this browser are
+                    // removed outright — they must not linger on shared
+                    // machines.
+                    if (
+                        config.userKeyPrefix &&
+                        !key.startsWith(config.userKeyPrefix)
+                    ) {
+                        window.localStorage.removeItem(key)
 
-                        if (! draft?.savedAt || this.isExpired(draft.savedAt)) {
+                        continue
+                    }
+
+                    try {
+                        const draft = JSON.parse(
+                            window.localStorage.getItem(key),
+                        )
+
+                        if (!draft?.savedAt || this.isExpired(draft.savedAt)) {
                             window.localStorage.removeItem(key)
                         }
                     } catch {
@@ -239,11 +318,16 @@ export default function draftRecovery(config) {
         offerRecovery() {
             const draft = this.readDraft()
 
-            if (! draft) {
+            if (!draft) {
                 return
             }
 
-            if (JSON.stringify({ ...JSON.parse(this.initialState), ...draft.data }) === this.initialState) {
+            if (
+                JSON.stringify({
+                    ...JSON.parse(this.initialState),
+                    ...draft.data,
+                }) === this.initialState
+            ) {
                 // The draft matches what is already on the page (e.g. it was
                 // saved elsewhere in the meantime) — recover nothing.
                 this.removeDraft(config.key)
@@ -255,7 +339,12 @@ export default function draftRecovery(config) {
 
             new window.FilamentNotification()
                 .title(config.lang.title)
-                .body(config.lang.body.replace(':saved_at', new Date(draft.savedAt).toLocaleString()))
+                .body(
+                    config.lang.body.replace(
+                        ':saved_at',
+                        new Date(draft.savedAt).toLocaleString(),
+                    ),
+                )
                 .icon('heroicon-o-document-arrow-up')
                 .persistent()
                 .actions([
@@ -263,12 +352,16 @@ export default function draftRecovery(config) {
                         .label(config.lang.restore)
                         .button()
                         .close()
-                        .dispatch('draft-recovery-restore', { key: config.key }),
+                        .dispatch('draft-recovery-restore', {
+                            key: config.key,
+                        }),
                     new window.FilamentNotificationAction('discard')
                         .label(config.lang.discard)
                         .color('gray')
                         .close()
-                        .dispatch('draft-recovery-discard', { key: config.key }),
+                        .dispatch('draft-recovery-discard', {
+                            key: config.key,
+                        }),
                 ])
                 .send()
         },
@@ -276,11 +369,13 @@ export default function draftRecovery(config) {
         restoreDraft() {
             const draft = this.readDraft()
 
-            if (! draft) {
+            if (!draft) {
                 return
             }
 
-            const currentData = JSON.parse(JSON.stringify(this.$wire.data ?? {}))
+            const currentData = JSON.parse(
+                JSON.stringify(this.$wire.data ?? {}),
+            )
 
             this.$wire.set('data', { ...currentData, ...draft.data })
         },

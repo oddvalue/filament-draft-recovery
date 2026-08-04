@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('recoverable_drafts', function (Blueprint $table) {
             $table->id();
             $table->string('key')->index();
-            $table->json('payload')->nullable();
+            $table->longText('payload')->nullable();
             $table->timestamps();
         });
     }

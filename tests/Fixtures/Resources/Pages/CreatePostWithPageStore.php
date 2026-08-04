@@ -15,4 +15,9 @@ class CreatePostWithPageStore extends CreateRecord
     protected static string $resource = PostResource::class;
 
     protected ?string $draftStore = 'database';
+
+    protected function draftRecoveryExcludedFields(): array
+    {
+        return ['internal_notes', 'items.*.card_number'];
+    }
 }

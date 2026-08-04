@@ -3,6 +3,7 @@
 namespace Oddvalue\FilamentDraftRecovery\Concerns;
 
 use Filament\Actions\Action;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Resources\Pages\EditRecord;
@@ -273,7 +274,7 @@ trait RecoversDrafts
     }
 
     /**
-     * @return array{key: string, mode: string, prefix: string, expiryDays: int, excludedFields: array<string>}
+     * @return array{key: string, mode: string, prefix: string, userKeyPrefix: string, saveDebounceMilliseconds: int, expiryDays: int, excludedFields: array<string>}
      */
     public function getDraftRecoveryConfig(): array
     {
@@ -281,8 +282,10 @@ trait RecoversDrafts
             'key' => $this->draftRecoveryKey(),
             'mode' => $this->getDraftStore()->isClientSide() ? 'client' : 'server',
             'prefix' => config('filament-draft-recovery.key_prefix'),
+            'userKeyPrefix' => $this->draftRecoveryUserKeyPrefix(),
+            'saveDebounceMilliseconds' => $this->draftRecoverySaveDebounceMilliseconds(),
             'expiryDays' => $this->draftRecoveryExpiryDays(),
-            'excludedFields' => $this->draftRecoveryExcludedFields(),
+            'excludedFields' => $this->getDraftRecoveryExcludedFields(),
             'lang' => [
                 'title' => __('filament-draft-recovery::draft-recovery.notification.title'),
                 'body' => __('filament-draft-recovery::draft-recovery.notification.body'),
@@ -298,9 +301,19 @@ trait RecoversDrafts
     }
 
     /**
-     * Top-level form data keys that must never be persisted as a draft
-     * (passwords, tokens, anything sensitive — local-storage drafts are
-     * plaintext in the user's browser).
+     * How long after the user stops typing before the draft is saved.
+     */
+    protected function draftRecoverySaveDebounceMilliseconds(): int
+    {
+        return (int) config('filament-draft-recovery.save_debounce_milliseconds', 2000);
+    }
+
+    /**
+     * Form data keys that must never be persisted as a draft (passwords,
+     * tokens, anything sensitive — local-storage drafts are plaintext in the
+     * user's browser). Patterns use dot notation; "*" matches a single
+     * segment, e.g. repeater item keys ("members.*.ssn"). Merged with the
+     * excluded_fields config and the schema's password inputs.
      *
      * @return array<string>
      */
@@ -310,12 +323,92 @@ trait RecoversDrafts
     }
 
     /**
+     * Every exclusion pattern that applies to this page: the excluded_fields
+     * config, the page's own draftRecoveryExcludedFields(), and any password
+     * inputs found in the form schema.
+     *
+     * @return array<string>
+     */
+    public function getDraftRecoveryExcludedFields(): array
+    {
+        /** @var array<string> $configured */
+        $configured = config('filament-draft-recovery.excluded_fields', []);
+
+        return array_values(array_unique([
+            ...$configured,
+            ...$this->draftRecoveryExcludedFields(),
+            ...$this->draftRecoveryPasswordFieldPaths(),
+        ]));
+    }
+
+    /**
+     * State paths of the schema's password inputs — always excluded so
+     * credentials never persist, whatever the configuration says.
+     *
+     * @return array<string>
+     */
+    protected function draftRecoveryPasswordFieldPaths(): array
+    {
+        $formStatePath = $this->form->getStatePath();
+
+        $paths = [];
+
+        foreach ($this->form->getFlatFields(withHidden: true) as $field) {
+            if ($field instanceof TextInput && $field->isPassword()) {
+                $paths[] = (string) str($field->getStatePath())->after("{$formStatePath}.");
+            }
+        }
+
+        return $paths;
+    }
+
+    /**
+     * The localStorage key prefix owned by the current user — anything under
+     * the package prefix but outside this one belongs to another user of the
+     * same browser and is pruned client-side.
+     */
+    protected function draftRecoveryUserKeyPrefix(): string
+    {
+        return config('filament-draft-recovery.key_prefix')
+            . (filament()->auth()->id() ?? auth()->id() ?? 'guest')
+            . ':';
+    }
+
+    /**
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
     protected function stripDraftRecoveryExcludedFields(array $data): array
     {
-        return array_diff_key($data, array_flip($this->draftRecoveryExcludedFields()));
+        foreach ($this->getDraftRecoveryExcludedFields() as $pattern) {
+            $this->forgetDraftRecoveryField($data, explode('.', $pattern));
+        }
+
+        return $data;
+    }
+
+    /**
+     * Removes every value matching the pattern segments; "*" matches any
+     * single segment. Mirrors forgetField() in the JavaScript component.
+     *
+     * @param  array<array-key, mixed>  $data
+     * @param  array<string>  $segments
+     */
+    protected function forgetDraftRecoveryField(array &$data, array $segments): void
+    {
+        $segment = array_shift($segments);
+
+        $keys = $segment === '*'
+            ? array_keys($data)
+            : (array_key_exists($segment, $data) ? [$segment] : []);
+
+        foreach ($keys as $key) {
+            if ($segments === []) {
+                unset($data[$key]);
+            } elseif (is_array($data[$key])) {
+                $this->forgetDraftRecoveryField($data[$key], $segments);
+            }
+        }
     }
 
     /**
