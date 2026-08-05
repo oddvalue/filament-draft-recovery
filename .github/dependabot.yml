@@ -1,0 +1,35 @@
+version: 2
+
+# Cooldown windows deliberately delay picking up brand-new releases: a
+# compromised release is most dangerous in the hours right after it is
+# published, before it is yanked. Majors wait longest because they need the
+# most review anyway.
+updates:
+  - package-ecosystem: "composer"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+
+  # Workflow actions are pinned to full commit SHAs, so this is what keeps
+  # those pins moving rather than leaving them to rot.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
