@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+    <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#18181b"/>
+            <stop offset="0.55" stop-color="#1c1917"/>
+            <stop offset="1" stop-color="#0c0a09"/>
+        </linearGradient>
+
+        <linearGradient id="amber" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#fbbf24"/>
+            <stop offset="1" stop-color="#f59e0b"/>
+        </linearGradient>
+
+        <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+            <stop offset="0" stop-color="#f59e0b" stop-opacity="0.22"/>
+            <stop offset="1" stop-color="#f59e0b" stop-opacity="0"/>
+        </radialGradient>
+
+        <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#fafaf9" stop-opacity="0.14"/>
+            <stop offset="1" stop-color="#fafaf9" stop-opacity="0.04"/>
+        </linearGradient>
+    </defs>
+
+    <rect width="1280" height="640" fill="url(#bg)"/>
+    <circle cx="1010" cy="300" r="420" fill="url(#glow)"/>
+
+    <!-- Left: wordmark and description -->
+    <g transform="translate(96, 176)">
+        <!-- Recovery mark: counterclockwise arc, r=15 about (24,24), running
+             300° from 100° to 160°, with the arrowhead built on the tangent
+             at that end (direction 70°) so it continues the sweep. -->
+        <g transform="translate(-2.5, -0.8)">
+            <path d="M 21.40 38.77 A 15 15 0 1 0 9.90 29.13" fill="none" stroke="url(#amber)" stroke-width="5" stroke-linecap="round"/>
+            <path d="M 12.98 37.59 L 3.83 27.08 L 13.23 23.66 Z" fill="url(#amber)"/>
+        </g>
+
+        <text x="54" y="34" fill="#fafaf9" font-size="30" font-weight="600" letter-spacing="-0.4">Filament</text>
+
+        <text x="0" y="122" fill="#fafaf9" font-size="66" font-weight="700" letter-spacing="-2.2">Draft Recovery</text>
+
+        <text x="0" y="182" fill="#a8a29e" font-size="27" font-weight="400" letter-spacing="-0.3">Auto-save &amp; crash recovery for</text>
+        <text x="0" y="220" fill="#a8a29e" font-size="27" font-weight="400" letter-spacing="-0.3">create and edit pages.</text>
+
+        <!-- Driver pills -->
+        <g transform="translate(0, 262)">
+            <g>
+                <rect x="0" y="0" width="178" height="44" rx="22" fill="#292524" stroke="#44403c" stroke-width="1"/>
+                <circle cx="26" cy="22" r="5" fill="#fbbf24"/>
+                <text x="42" y="29" fill="#d6d3d1" font-size="18" font-weight="500">local-storage</text>
+            </g>
+            <g transform="translate(194, 0)">
+                <rect x="0" y="0" width="146" height="44" rx="22" fill="#292524" stroke="#44403c" stroke-width="1"/>
+                <circle cx="26" cy="22" r="5" fill="#fbbf24"/>
+                <text x="42" y="29" fill="#d6d3d1" font-size="18" font-weight="500">database</text>
+            </g>
+            <g transform="translate(356, 0)">
+                <rect x="0" y="0" width="181" height="44" rx="22" fill="#292524" stroke="#44403c" stroke-width="1"/>
+                <circle cx="26" cy="22" r="5" fill="#fbbf24"/>
+                <text x="42" y="29" fill="#d6d3d1" font-size="18" font-weight="500">laravel-drafts</text>
+            </g>
+        </g>
+    </g>
+
+    <!-- Right: recovery notification mock -->
+    <g transform="translate(742, 214)">
+        <rect x="16" y="20" width="428" height="196" rx="18" fill="#0c0a09" opacity="0.5"/>
+        <rect x="0" y="0" width="428" height="196" rx="18" fill="#1c1917" stroke="#44403c" stroke-width="1"/>
+
+        <!-- Icon -->
+        <circle cx="46" cy="46" r="20" fill="#f59e0b" opacity="0.14"/>
+        <g transform="translate(34, 34)" stroke="url(#amber)" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4.5 8.5 v10 a1.5 1.5 0 0 0 1.5 1.5 h12 a1.5 1.5 0 0 0 1.5 -1.5 v-10"/>
+            <path d="M12 15 v-11 M12 4 l-4 4 M12 4 l4 4"/>
+        </g>
+
+        <text x="80" y="42" fill="#fafaf9" font-size="21" font-weight="600" letter-spacing="-0.3">Unsaved draft found</text>
+        <text x="80" y="72" fill="#a8a29e" font-size="17">You have an unsaved draft from</text>
+        <text x="80" y="96" fill="#a8a29e" font-size="17">4 minutes ago.</text>
+
+        <!-- Actions -->
+        <g transform="translate(80, 122)">
+            <rect x="0" y="0" width="150" height="42" rx="10" fill="url(#amber)"/>
+            <text x="75" y="27" fill="#1c1917" font-size="17" font-weight="600" text-anchor="middle">Recover draft</text>
+
+            <rect x="166" y="0" width="104" height="42" rx="10" fill="#292524" stroke="#57534e" stroke-width="1"/>
+            <text x="218" y="27" fill="#d6d3d1" font-size="17" font-weight="500" text-anchor="middle">Discard</text>
+        </g>
+    </g>
+
+    <!-- Footer rule and handle -->
+    <rect x="96" y="548" width="1088" height="1" fill="url(#fade)"/>
+    <text x="96" y="590" fill="#78716c" font-size="19" font-weight="500">oddvalue/filament-draft-recovery</text>
+    <text x="1184" y="590" fill="#78716c" font-size="19" font-weight="500" text-anchor="end">Filament v4 &amp; v5</text>
+</svg>

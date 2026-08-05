@@ -355,7 +355,7 @@ trait RecoversDrafts
 
         foreach ($this->form->getFlatFields(withHidden: true) as $field) {
             if ($field instanceof TextInput && $field->isPassword()) {
-                $paths[] = (string) str($field->getStatePath())->after("{$formStatePath}.");
+                $paths[] = (string) str($field->getStatePath())->after($formStatePath . '.');
             }
         }
 
@@ -381,7 +381,7 @@ trait RecoversDrafts
     protected function stripDraftRecoveryExcludedFields(array $data): array
     {
         foreach ($this->getDraftRecoveryExcludedFields() as $pattern) {
-            $this->forgetDraftRecoveryField($data, explode('.', $pattern));
+            $this->forgetDraftRecoveryField($data, explode('.', (string) $pattern));
         }
 
         return $data;
@@ -442,7 +442,7 @@ trait RecoversDrafts
 
         if (is_string($value) && str_starts_with($value, 'livewire-files:')) {
             $files = array_map(
-                fn (string $filename): TemporaryUploadedFile => TemporaryUploadedFile::createFromLivewire($filename),
+                TemporaryUploadedFile::createFromLivewire(...),
                 array_values(array_filter(
                     (array) json_decode(substr($value, strlen('livewire-files:')), true),
                     fn ($filename): bool => is_string($filename) && $this->pendingUploadExists($filename),

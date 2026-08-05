@@ -1,3 +1,5 @@
+![Filament Draft Recovery](art/banner.png)
+
 # Filament Draft Recovery
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/oddvalue/filament-draft-recovery.svg?style=flat-square)](https://packagist.org/packages/oddvalue/filament-draft-recovery)
@@ -8,7 +10,7 @@
 [![Total Downloads](https://img.shields.io/packagist/dt/oddvalue/filament-draft-recovery.svg?style=flat-square)](https://packagist.org/packages/oddvalue/filament-draft-recovery)
 ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/oddvalue/9dd8e508cb2433728d42a258193770eb/raw/filament-draft-recovery-cobertura-coverage.json)
 
-Auto-save draft & crash recovery for Filament v4 create/edit pages, with swappable storage drivers. 100% test coverage, enforced in CI.
+Auto-save draft & crash recovery for Filament v4 and v5 create/edit pages, with swappable storage drivers. 100% test coverage, enforced in CI.
 
 While a user edits a create or edit form, the form state is auto-saved (debounced, 2s by default). If their browser crashes, the tab closes, or the session expires, returning to the page shows a persistent notification offering to **recover** or **discard** the draft. Drafts are cleared on a successful save and expire after 7 days.
 
