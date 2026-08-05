@@ -1,3 +1,5 @@
+![Filament Draft Recovery](art/banner.png)
+
 # Filament Draft Recovery
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/oddvalue/filament-draft-recovery.svg?style=flat-square)](https://packagist.org/packages/oddvalue/filament-draft-recovery)
