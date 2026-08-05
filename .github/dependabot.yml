@@ -3,13 +3,37 @@
 # Please see the documentation for all configuration options:
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
+#
+# Cooldown windows deliberately delay picking up brand-new releases: a
+# compromised release is most dangerous in the hours right after it is
+# published, before it is yanked. Majors wait longest because they need the
+# most review anyway.
+
 version: 2
 updates:
   - package-ecosystem: "composer" # See documentation for possible values
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
   - package-ecosystem: "npm" # See documentation for possible values
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+  # Workflow actions are pinned to full commit SHAs, so this is what keeps
+  # those pins moving rather than leaving them to rot.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
