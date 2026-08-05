@@ -91,5 +91,5 @@
     <!-- Footer rule and handle -->
     <rect x="96" y="548" width="1088" height="1" fill="url(#fade)"/>
     <text x="96" y="590" fill="#78716c" font-size="19" font-weight="500">oddvalue/filament-draft-recovery</text>
-    <text x="1184" y="590" fill="#78716c" font-size="19" font-weight="500" text-anchor="end">Filament v4</text>
+    <text x="1184" y="590" fill="#78716c" font-size="19" font-weight="500" text-anchor="end">Filament v4 &amp; v5</text>
 </svg>

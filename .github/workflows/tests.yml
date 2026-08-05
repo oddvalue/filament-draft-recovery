@@ -19,12 +19,19 @@ jobs:
       fail-fast: true
       matrix:
         php: [8.4, 8.3]
-        laravel: [12.*]
+        filament: ['4.*', '5.*']
+        # Filament 4 and 5 both support Laravel 11-13; they differ on Livewire
+        # (4 needs ^3.5, 5 needs ^4.1), so each major is paired with the
+        # Laravel release it most commonly ships against.
         include:
-          - laravel: 12.*
+          - filament: '4.*'
+            laravel: 12.*
             testbench: 10.*
+          - filament: '5.*'
+            laravel: 13.*
+            testbench: 11.*
 
-    name: P${{ matrix.php }} - L${{ matrix.laravel }}
+    name: P${{ matrix.php }} - F${{ matrix.filament }} - L${{ matrix.laravel }}
 
     steps:
       - uses: actions/checkout@v4
@@ -40,7 +47,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          composer require "laravel/framework:${{ matrix.laravel }}" "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
+          composer require "filament/filament:${{ matrix.filament }}" "laravel/framework:${{ matrix.laravel }}" "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
           composer update --prefer-dist --no-interaction
 
       - name: Execute tests
@@ -50,7 +57,9 @@ jobs:
         uses: gaelgirodon/ci-badges-action@07a65145ff9feb271f426865f940977a94578ad4 # v1.5.0
         # Non-fatal so a missing GIST_TOKEN secret never fails the test run.
         continue-on-error: true
-        if: github.ref == 'refs/heads/main' && matrix.php == 8.4
+        # Pinned to a single matrix cell so concurrent jobs never race to
+        # write the same gist.
+        if: github.ref == 'refs/heads/main' && matrix.php == 8.4 && matrix.filament == '5.*'
         with:
           gist-id: 9dd8e508cb2433728d42a258193770eb
           token: ${{ secrets.GIST_TOKEN }}
