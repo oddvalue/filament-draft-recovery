@@ -45,17 +45,17 @@
         <!-- Driver pills -->
         <g transform="translate(0, 262)">
             <g>
-                <rect x="0" y="0" width="176" height="44" rx="22" fill="#292524" stroke="#44403c" stroke-width="1"/>
+                <rect x="0" y="0" width="178" height="44" rx="22" fill="#292524" stroke="#44403c" stroke-width="1"/>
                 <circle cx="26" cy="22" r="5" fill="#fbbf24"/>
                 <text x="42" y="29" fill="#d6d3d1" font-size="18" font-weight="500">local-storage</text>
             </g>
-            <g transform="translate(192, 0)">
-                <rect x="0" y="0" width="130" height="44" rx="22" fill="#292524" stroke="#44403c" stroke-width="1"/>
+            <g transform="translate(194, 0)">
+                <rect x="0" y="0" width="146" height="44" rx="22" fill="#292524" stroke="#44403c" stroke-width="1"/>
                 <circle cx="26" cy="22" r="5" fill="#fbbf24"/>
                 <text x="42" y="29" fill="#d6d3d1" font-size="18" font-weight="500">database</text>
             </g>
-            <g transform="translate(338, 0)">
-                <rect x="0" y="0" width="184" height="44" rx="22" fill="#292524" stroke="#44403c" stroke-width="1"/>
+            <g transform="translate(356, 0)">
+                <rect x="0" y="0" width="181" height="44" rx="22" fill="#292524" stroke="#44403c" stroke-width="1"/>
                 <circle cx="26" cy="22" r="5" fill="#fbbf24"/>
                 <text x="42" y="29" fill="#d6d3d1" font-size="18" font-weight="500">laravel-drafts</text>
             </g>
