@@ -1,4 +1,6 @@
-![Filament Draft Recovery](art/banner.png)
+<!-- filament-hidden keeps the banner out of the plugin's page on the Filament
+     website, which renders this README below its own hero image. -->
+<img src="art/banner.png" alt="Filament Draft Recovery" class="filament-hidden">
 
 # Filament Draft Recovery
 
