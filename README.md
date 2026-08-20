@@ -1,6 +1,14 @@
 <!-- filament-hidden keeps the banner out of the plugin's page on the Filament
      website, which renders this README below its own hero image. -->
-<img src="art/banner.png" alt="Filament Draft Recovery" class="filament-hidden">
+<picture class="filament-hidden">
+  <source media="(prefers-color-scheme: dark)"
+          srcset="art/draft-recovery-2560x1440-dark.jpg">
+  <source media="(prefers-color-scheme: light)"
+          srcset="art/draft-recovery-2560x1440-light.jpg">
+  <img alt="Filament Draft Recovery — auto-save & crash recovery for create and edit pages"
+       src="art/draft-recovery-2560x1440-light.jpg" width="100%">
+</picture>
+
 
 # Filament Draft Recovery
 
