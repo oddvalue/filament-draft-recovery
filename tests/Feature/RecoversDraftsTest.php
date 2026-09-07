@@ -11,8 +11,10 @@ use Oddvalue\FilamentDraftRecovery\Facades\DraftRecovery;
 use Oddvalue\FilamentDraftRecovery\Models\RecoverableDraft;
 use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Models\Post;
 use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\Pages\CreatePost;
+use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\Pages\CreatePostWithOwnCreateHook;
 use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\Pages\CreatePostWithPageStore;
 use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\Pages\EditPost;
+use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\Pages\EditPostWithOwnSaveHook;
 
 use function Pest\Livewire\livewire;
 
@@ -188,6 +190,30 @@ it('dispatches a clear event after creating in client mode', function (): void {
         ->assertDispatched('draft-recovery-clear');
 
     expect(Post::query()->where('title', 'New post')->exists())->toBeTrue();
+});
+
+it('still clears the draft when the page defines its own afterCreate hook', function (): void {
+    actingAsTestUser();
+
+    livewire(CreatePostWithOwnCreateHook::class)
+        ->fillForm(['title' => 'New post'])
+        ->call('create')
+        ->assertHasNoFormErrors()
+        ->assertSet('ownHookCalled', true)
+        ->assertDispatched('draft-recovery-clear');
+});
+
+it('still clears the draft when the page defines its own afterSave hook', function (): void {
+    actingAsTestUser();
+
+    $post = Post::query()->create(['title' => 'Hello']);
+
+    livewire(EditPostWithOwnSaveHook::class, ['record' => $post->getKey()])
+        ->fillForm(['title' => 'Updated'])
+        ->call('save')
+        ->assertHasNoFormErrors()
+        ->assertSet('ownHookCalled', true)
+        ->assertDispatched('draft-recovery-clear');
 });
 
 describe('server mode (database store)', function (): void {

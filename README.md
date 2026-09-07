@@ -231,20 +231,16 @@ The `payload` column must be a text-type column, because ciphertext does not fit
 
 ## Pages with their own lifecycle hooks
 
-The trait clears drafts from `afterCreate()` / `afterSave()`. A page that defines its own version of either hook **silently overrides the trait's**. Call the clear method yourself:
+The trait clears drafts from the trait-named hooks `afterCreateRecoversDrafts()` / `afterSaveRecoversDrafts()`. Filament (4.13+ / 5.8+) calls these alongside the page's own `afterCreate()` / `afterSave()`, so your page can define either hook without any extra wiring:
 
 ```php
 protected function afterSave(): void
 {
-    $this->dispatchDraftRecoveryClear();
-
-    // your own logic…
+    // your own logic — the draft is still cleared afterwards
 }
 ```
 
-The same applies to `getFooter()`: if your page overrides it, include the view from `Oddvalue\FilamentDraftRecovery\Concerns\RecoversDrafts::getFooter()` in your footer.
-
-> If Filament gains trait-named lifecycle hook support ([filamentphp/filament PR](https://github.com/oddvalue/filament/tree/feature/trait-named-lifecycle-hooks)), this caveat goes away.
+`getFooter()` is not a lifecycle hook: if your page overrides it, include the view from `Oddvalue\FilamentDraftRecovery\Concerns\RecoversDrafts::getFooter()` in your footer.
 
 ## How it works
 

@@ -26,10 +26,11 @@ use Oddvalue\FilamentDraftRecovery\Facades\DraftRecovery;
  * driver resolves from, in order: the page's $draftStore property, the
  * panel's DraftRecoveryPlugin::store(), the package config.
  *
- * IMPORTANT: a page that defines its own afterCreate()/afterSave() hook
- * silently overrides the ones declared here — such pages must call
- * $this->dispatchDraftRecoveryClear() from their own hook, or drafts will
- * never be cleared. Likewise for pages defining their own getFooter().
+ * Drafts are cleared from the trait-named lifecycle hooks
+ * afterCreateRecoversDrafts() / afterSaveRecoversDrafts(), which Filament
+ * calls alongside the page's own afterCreate() / afterSave(), so pages are
+ * free to define those. A page defining its own getFooter() still has to
+ * include the view rendered by the trait's getFooter().
  *
  * @mixin CreateRecord|EditRecord
  *
@@ -244,12 +245,18 @@ trait RecoversDrafts
         $store->forget($this->draftRecoveryContext());
     }
 
-    protected function afterCreate(): void
+    /**
+     * Trait-named lifecycle hook — runs after the page's own afterCreate().
+     */
+    protected function afterCreateRecoversDrafts(): void
     {
         $this->dispatchDraftRecoveryClear();
     }
 
-    protected function afterSave(): void
+    /**
+     * Trait-named lifecycle hook — runs after the page's own afterSave().
+     */
+    protected function afterSaveRecoversDrafts(): void
     {
         $this->dispatchDraftRecoveryClear();
     }
