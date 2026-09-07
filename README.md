@@ -229,18 +229,9 @@ The `database` driver stores payloads as plain JSON by default. To encrypt them 
 
 The `payload` column must be a text-type column, because ciphertext does not fit a MySQL `json` column. The shipped migration uses `longText`; if you published an earlier version of the migration that used `json`, change the column type before enabling encryption.
 
-## Pages with their own lifecycle hooks
+## Pages with their own footer
 
-The trait clears drafts from the trait-named hooks `afterCreateRecoversDrafts()` / `afterSaveRecoversDrafts()`. Filament (4.13+ / 5.8+) calls these alongside the page's own `afterCreate()` / `afterSave()`, so your page can define either hook without any extra wiring:
-
-```php
-protected function afterSave(): void
-{
-    // your own logic — the draft is still cleared afterwards
-}
-```
-
-`getFooter()` is not a lifecycle hook: if your page overrides it, include the view from `Oddvalue\FilamentDraftRecovery\Concerns\RecoversDrafts::getFooter()` in your footer.
+The trait renders its JavaScript component from `getFooter()`. If your page overrides that method, include the view from `Oddvalue\FilamentDraftRecovery\Concerns\RecoversDrafts::getFooter()` in your footer.
 
 ## How it works
 

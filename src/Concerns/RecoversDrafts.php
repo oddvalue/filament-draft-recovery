@@ -29,8 +29,11 @@ use Oddvalue\FilamentDraftRecovery\Facades\DraftRecovery;
  * Drafts are cleared from the trait-named lifecycle hooks
  * afterCreateRecoversDrafts() / afterSaveRecoversDrafts(), which Filament
  * calls alongside the page's own afterCreate() / afterSave(), so pages are
- * free to define those. A page defining its own getFooter() still has to
- * include the view rendered by the trait's getFooter().
+ * free to define those. Pages written before those hooks existed call
+ * dispatchDraftRecoveryClear() from their own hook; that remains safe, as
+ * the clear only ever runs once per request. A page defining its own
+ * getFooter() still has to include the view rendered by the trait's
+ * getFooter().
  *
  * @mixin CreateRecord|EditRecord
  *
@@ -43,6 +46,13 @@ trait RecoversDrafts
      * NUL-prefixed so it can never collide with real form data.
      */
     private const STALE_DRAFT_UPLOAD = "\0filament-draft-recovery:stale-upload";
+
+    /**
+     * Whether the draft has already been cleared during this request, so a
+     * page calling dispatchDraftRecoveryClear() from its own hook alongside
+     * the trait-named hook clears it once rather than twice.
+     */
+    protected bool $draftRecoveryCleared = false;
 
     public function getDraftStore(): DraftStore
     {
@@ -246,6 +256,24 @@ trait RecoversDrafts
     }
 
     /**
+     * @deprecated Kept so pages aliasing the trait's afterCreate() keep
+     *             working; the clear now runs from afterCreateRecoversDrafts().
+     */
+    protected function afterCreate(): void
+    {
+        $this->dispatchDraftRecoveryClear();
+    }
+
+    /**
+     * @deprecated Kept so pages aliasing the trait's afterSave() keep
+     *             working; the clear now runs from afterSaveRecoversDrafts().
+     */
+    protected function afterSave(): void
+    {
+        $this->dispatchDraftRecoveryClear();
+    }
+
+    /**
      * Trait-named lifecycle hook — runs after the page's own afterCreate().
      */
     protected function afterCreateRecoversDrafts(): void
@@ -263,6 +291,12 @@ trait RecoversDrafts
 
     public function dispatchDraftRecoveryClear(): void
     {
+        if ($this->draftRecoveryCleared) {
+            return;
+        }
+
+        $this->draftRecoveryCleared = true;
+
         $context = $this->draftRecoveryContext();
         $store = $this->getDraftStore();
 
