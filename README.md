@@ -233,6 +233,8 @@ The `payload` column must be a text-type column, because ciphertext does not fit
 
 The trait renders its JavaScript component from `getFooter()`. If your page overrides that method, include the view returned by `Oddvalue\FilamentDraftRecovery\Concerns\RecoversDrafts::getFooter()` in your footer.
 
+Lifecycle hooks need no such care. The trait clears drafts from its own `afterCreateRecoversDrafts()` and `afterSaveRecoversDrafts()` hooks, which Filament 4.13 and 5.8 onwards run alongside any `afterCreate()` or `afterSave()` your page defines. Pages written against older versions that call `dispatchDraftRecoveryClear()` from their own hook keep working. The clear runs once per request either way.
+
 ## How it works
 
 - The Alpine component injected through the page footer snapshots the Livewire form state (`$wire.data`) on input and change events, debounced by `save_debounce_milliseconds` (default 2 seconds).
