@@ -9,8 +9,8 @@ use Oddvalue\FilamentDraftRecovery\Concerns\RecoversDrafts;
 use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\PostResource;
 
 /**
- * Defines its own afterCreate() without calling the trait's clear method —
- * the trait-named hook must still run alongside it.
+ * Defines its own afterCreate() without calling the trait's clear method.
+ * The trait-named hook must still run alongside it.
  */
 class CreatePostWithOwnCreateHook extends CreateRecord
 {

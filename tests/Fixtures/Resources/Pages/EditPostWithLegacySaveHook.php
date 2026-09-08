@@ -10,7 +10,7 @@ use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\PostResource;
 
 /**
  * Clears the draft from its own afterSave(), as pages had to before Filament
- * supported trait-named hooks — the clear must still only run once.
+ * supported trait-named hooks. The clear must still only run once.
  */
 class EditPostWithLegacySaveHook extends EditRecord
 {

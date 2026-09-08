@@ -9,7 +9,7 @@ use Oddvalue\FilamentDraftRecovery\Data\DraftContext;
 use Oddvalue\FilamentDraftRecovery\Data\RecoveredDraft;
 
 /**
- * Drafts live entirely in the user's browser localStorage — the JavaScript
+ * Drafts live entirely in the user's browser localStorage. The JavaScript
  * component handles persistence, recovery, and clearing. Nothing reaches
  * the server, so the server-side accessors are inert.
  */

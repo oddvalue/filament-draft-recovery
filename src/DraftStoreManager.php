@@ -47,7 +47,7 @@ class DraftStoreManager extends Manager
 
     /**
      * The store handling create-page drafts for the laravel-drafts store:
-     * the configured create_store, falling back to the default store — or
+     * the configured create_store, falling back to the default store, or
      * "database" when the default is laravel-drafts itself.
      */
     protected function laravelDraftsCreatePageStoreName(): string

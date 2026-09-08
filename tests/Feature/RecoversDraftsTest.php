@@ -528,7 +528,7 @@ describe('server mode (laravel-drafts store)', function (): void {
         actingAsTestUser();
 
         // Default create page store falls back to the config default, which
-        // here is laravel-drafts itself — so the database store steps in.
+        // here is laravel-drafts itself, so the database store steps in.
         livewire(CreatePost::class)
             ->assertSeeHtml('\u0022mode\u0022:\u0022server\u0022');
 

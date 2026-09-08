@@ -53,7 +53,7 @@ class FilamentDraftRecoveryServiceProvider extends PackageServiceProvider
         // localStorage can only be cleared by a script on a rendered page, so
         // an explicit logout queues a short-lived cookie and the next panel
         // page render (normally the login redirect) purges the drafts and
-        // consumes the cookie. Session expiry fires no Logout event — those
+        // consumes the cookie. Session expiry fires no Logout event, so those
         // drafts survive for recovery.
         Event::listen(Logout::class, function (): void {
             if (config('filament-draft-recovery.purge_on_logout') === true) {

@@ -85,8 +85,9 @@ class TestCase extends Orchestra
     }
 
     /**
-     * Creates the schema once (DDL) and empties the tables before each test —
-     * transaction-based refresh traits fight MySQL's implicit DDL commits.
+     * Creates the schema once (DDL) and empties the tables before each test,
+     * because transaction-based refresh traits fight MySQL's implicit DDL
+     * commits.
      */
     protected function prepareDatabase(): void
     {

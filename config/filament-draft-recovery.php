@@ -11,10 +11,10 @@ return [
     | Default draft store
     |--------------------------------------------------------------------------
     |
-    | Where recoverable form drafts are persisted. Supported: "local-storage"
+    | Where recoverable form drafts are stored. Supported: "local-storage"
     | (the user's browser, nothing server-side), "database" (the
-    | recoverable_drafts table), "laravel-drafts" (revision-tracked storage
-    | via oddvalue/laravel-drafts). Can be overridden per panel via
+    | recoverable_drafts table), "laravel-drafts" (an auto draft on the
+    | record itself via oddvalue/laravel-drafts). Override per panel with
     | DraftRecoveryPlugin::make()->store(...) or per page by setting the
     | $draftStore property.
     |
@@ -28,7 +28,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | How long (in milliseconds) after the user stops typing before the form
-    | state is saved as a draft. Can be overridden per page by overriding the
+    | state is saved as a draft. Override per page with the
     | draftRecoverySaveDebounceMilliseconds() method.
     |
     */
@@ -86,9 +86,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | When enabled, an explicit logout (Laravel's Logout event) queues a
-    | short-lived cookie, and the next panel page render — normally the login
-    | redirect — removes every localStorage draft the package has written, so
-    | drafts never outlive a logout on a shared machine. Session expiry fires
+    | short-lived cookie. The next panel page render, normally the login
+    | redirect, removes every localStorage draft the package has written, so
+    | drafts do not outlive a logout on a shared machine. Session expiry fires
     | no Logout event, so those drafts remain recoverable.
     |
     */
@@ -102,8 +102,8 @@ return [
     |
     | Set "encrypt" to true to store database draft payloads encrypted at
     | rest (Laravel's encrypted:array cast, using the app key). The payload
-    | column must be a text-type column — ciphertext does not fit a MySQL
-    | json column; the shipped migration uses longText.
+    | column must be a text-type column, because ciphertext does not fit a
+    | MySQL json column. The shipped migration uses longText.
     |
     */
 
@@ -118,11 +118,11 @@ return [
     |--------------------------------------------------------------------------
     |
     | Edit-page drafts are stored on the page's own model via laravel-drafts'
-    | auto draft feature — the model must use the HasDrafts trait and auto
+    | auto draft feature. The model must use the HasDrafts trait and auto
     | drafts must be enabled (drafts.auto_drafts.enabled). Auto drafts only
-    | exist for existing records, so create-page drafts are delegated to
-    | another store: create_store, falling back to the default store above
-    | (or "database" when the default is laravel-drafts itself).
+    | exist for existing records, so create-page drafts go to another store:
+    | create_store, falling back to the default store above (or "database"
+    | when the default is laravel-drafts itself).
     |
     */
 

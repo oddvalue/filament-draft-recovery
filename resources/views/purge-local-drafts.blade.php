@@ -21,7 +21,7 @@
                 window.localStorage.removeItem(key);
             }
         } catch {
-            // Storage unavailable — nothing to purge.
+            // Storage unavailable, so nothing to purge.
         }
     })();
 </script>
