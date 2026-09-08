@@ -16,9 +16,9 @@ use Oddvalue\LaravelDrafts\Concerns\HasDrafts;
 use RuntimeException;
 
 /**
- * Stores edit-page drafts through oddvalue/laravel-drafts' first-class auto
- * draft feature, directly on the model being edited — the page's model must
- * use the HasDrafts trait and auto drafts must be enabled
+ * Stores edit-page drafts through oddvalue/laravel-drafts' auto draft
+ * feature, directly on the model being edited. The page's model must use
+ * the HasDrafts trait and auto drafts must be enabled
  * (drafts.auto_drafts.enabled).
  *
  * Each auto-save calls saveAsAutoDraft() on the record: a single, quietly
@@ -69,7 +69,7 @@ class LaravelDraftsStore implements DraftStore, ResolvesCreatePageStore
 
         if ($store instanceof self) {
             throw new RuntimeException(
-                'The laravel-drafts draft store cannot delegate create page drafts to itself — configure filament-draft-recovery.laravel-drafts.create_store with a different store.'
+                'The laravel-drafts draft store cannot delegate create page drafts to itself. Configure filament-draft-recovery.laravel-drafts.create_store with a different store.'
             );
         }
 
@@ -122,7 +122,7 @@ class LaravelDraftsStore implements DraftStore, ResolvesCreatePageStore
             $context->record->saveAsAutoDraft($attributes);
         } catch (QueryException) {
             // Best-effort: incomplete form state can violate column
-            // constraints — the next auto-save will try again.
+            // constraints. The next auto-save will try again.
         }
     }
 
@@ -175,8 +175,8 @@ class LaravelDraftsStore implements DraftStore, ResolvesCreatePageStore
 
     /**
      * The model's real columns minus its primary key, timestamps, and the
-     * laravel-drafts bookkeeping columns — the attributes a form draft may
-     * carry.
+     * laravel-drafts bookkeeping columns. These are the attributes a form
+     * draft may carry.
      *
      * @return array<string>
      */
@@ -213,7 +213,7 @@ class LaravelDraftsStore implements DraftStore, ResolvesCreatePageStore
 
         if (! ($context->modelClass)::autoDraftsEnabled()) {
             throw new RuntimeException(
-                'The laravel-drafts draft store requires auto drafts to be enabled — set the drafts.auto_drafts.enabled config option to true.'
+                'The laravel-drafts draft store requires auto drafts to be enabled. Set the drafts.auto_drafts.enabled config option to true.'
             );
         }
     }

@@ -26,7 +26,7 @@ class PostResource extends Resource
             TextInput::make('title')
                 ->required(),
             Textarea::make('body'),
-            // Not a posts column — kept out of the saved state so the
+            // Not a posts column. Kept out of the saved state so the
             // fixture table needs no attachment column.
             FileUpload::make('attachment')
                 ->dehydrated(false),

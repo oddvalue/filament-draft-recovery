@@ -27,7 +27,7 @@ export default function draftRecovery(config) {
 
                 // The recovery prompt is a Filament notification, which needs
                 // the notifications Livewire component to be mounted before
-                // the `notificationSent` event is dispatched — wait for
+                // the `notificationSent` event is dispatched, so wait for
                 // Livewire to finish booting (with a timeout fallback in case
                 // it already has).
                 let hasOfferedRecovery = false
@@ -193,7 +193,7 @@ export default function draftRecovery(config) {
             }
 
             if (serializedState === this.initialState) {
-                // The form is back to (or still in) its page-load state — a
+                // The form is back to (or still in) its page-load state. A
                 // draft would only offer to "recover" what is already there.
                 // Only clean up drafts written during this page view; a stored
                 // draft from a previous session is the recovery prompt's job.
@@ -224,7 +224,7 @@ export default function draftRecovery(config) {
 
                 this.lastSavedState = serializedState
             } catch {
-                // Storage full or unavailable — drafts are best-effort only.
+                // Storage full or unavailable. Drafts are best-effort only.
             }
         },
 
@@ -259,7 +259,7 @@ export default function draftRecovery(config) {
             try {
                 window.localStorage.removeItem(key)
             } catch {
-                // Storage unavailable — nothing to clear.
+                // Storage unavailable, so nothing to clear.
             }
         },
 
@@ -287,7 +287,7 @@ export default function draftRecovery(config) {
 
                 for (const key of keys) {
                     // Drafts belonging to another user of this browser are
-                    // removed outright — they must not linger on shared
+                    // removed outright. They must not linger on shared
                     // machines.
                     if (
                         config.userKeyPrefix &&
@@ -311,7 +311,7 @@ export default function draftRecovery(config) {
                     }
                 }
             } catch {
-                // Storage unavailable — nothing to prune.
+                // Storage unavailable, so nothing to prune.
             }
         },
 
@@ -329,7 +329,7 @@ export default function draftRecovery(config) {
                 }) === this.initialState
             ) {
                 // The draft matches what is already on the page (e.g. it was
-                // saved elsewhere in the meantime) — recover nothing.
+                // saved elsewhere in the meantime), so recover nothing.
                 this.removeDraft(config.key)
 
                 return

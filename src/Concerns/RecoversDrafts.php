@@ -26,10 +26,14 @@ use Oddvalue\FilamentDraftRecovery\Facades\DraftRecovery;
  * driver resolves from, in order: the page's $draftStore property, the
  * panel's DraftRecoveryPlugin::store(), the package config.
  *
- * IMPORTANT: a page that defines its own afterCreate()/afterSave() hook
- * silently overrides the ones declared here — such pages must call
- * $this->dispatchDraftRecoveryClear() from their own hook, or drafts will
- * never be cleared. Likewise for pages defining their own getFooter().
+ * Drafts are cleared from the trait-named lifecycle hooks
+ * afterCreateRecoversDrafts() / afterSaveRecoversDrafts(), which Filament
+ * calls alongside the page's own afterCreate() / afterSave(), so pages are
+ * free to define those. Pages written before those hooks existed call
+ * dispatchDraftRecoveryClear() from their own hook; that remains safe, as
+ * the clear only ever runs once per request. A page defining its own
+ * getFooter() still has to include the view rendered by the trait's
+ * getFooter().
  *
  * @mixin CreateRecord|EditRecord
  *
@@ -42,6 +46,13 @@ trait RecoversDrafts
      * NUL-prefixed so it can never collide with real form data.
      */
     private const STALE_DRAFT_UPLOAD = "\0filament-draft-recovery:stale-upload";
+
+    /**
+     * Whether the draft has already been cleared during this request, so a
+     * page calling dispatchDraftRecoveryClear() from its own hook alongside
+     * the trait-named hook clears it once rather than twice.
+     */
+    protected bool $draftRecoveryCleared = false;
 
     public function getDraftStore(): DraftStore
     {
@@ -101,7 +112,7 @@ trait RecoversDrafts
     }
 
     /**
-     * Livewire trait lifecycle hook — offers recovery of a server-side draft
+     * Livewire trait lifecycle hook. Offers recovery of a server-side draft
      * once the form has been filled.
      */
     public function mountRecoversDrafts(): void
@@ -196,7 +207,7 @@ trait RecoversDrafts
 
         // Filling a file upload field treats every state entry as a stored
         // file path and checks it against the component's disk, which would
-        // discard pending uploads — their state is re-applied directly.
+        // discard pending uploads, so their state is re-applied directly.
         foreach ($pendingUploads as $field => $value) {
             data_set($this->data, $field, $value);
         }
@@ -204,9 +215,9 @@ trait RecoversDrafts
 
     /**
      * Checked against the storage disk rather than via
-     * TemporaryUploadedFile::exists() — constructing a TemporaryUploadedFile
-     * touches its path into existence in test environments, which would make
-     * every dead marker look alive.
+     * TemporaryUploadedFile::exists(), because constructing a
+     * TemporaryUploadedFile touches its path into existence in test
+     * environments, which would make every dead marker look alive.
      */
     protected function pendingUploadExists(string $filename): bool
     {
@@ -244,18 +255,48 @@ trait RecoversDrafts
         $store->forget($this->draftRecoveryContext());
     }
 
+    /**
+     * @deprecated Kept so pages aliasing the trait's afterCreate() keep
+     *             working; the clear now runs from afterCreateRecoversDrafts().
+     */
     protected function afterCreate(): void
     {
         $this->dispatchDraftRecoveryClear();
     }
 
+    /**
+     * @deprecated Kept so pages aliasing the trait's afterSave() keep
+     *             working; the clear now runs from afterSaveRecoversDrafts().
+     */
     protected function afterSave(): void
+    {
+        $this->dispatchDraftRecoveryClear();
+    }
+
+    /**
+     * Trait-named lifecycle hook. Filament runs it after the page's own afterCreate().
+     */
+    protected function afterCreateRecoversDrafts(): void
+    {
+        $this->dispatchDraftRecoveryClear();
+    }
+
+    /**
+     * Trait-named lifecycle hook. Filament runs it after the page's own afterSave().
+     */
+    protected function afterSaveRecoversDrafts(): void
     {
         $this->dispatchDraftRecoveryClear();
     }
 
     public function dispatchDraftRecoveryClear(): void
     {
+        if ($this->draftRecoveryCleared) {
+            return;
+        }
+
+        $this->draftRecoveryCleared = true;
+
         $context = $this->draftRecoveryContext();
         $store = $this->getDraftStore();
 
@@ -310,8 +351,8 @@ trait RecoversDrafts
 
     /**
      * Form data keys that must never be persisted as a draft (passwords,
-     * tokens, anything sensitive — local-storage drafts are plaintext in the
-     * user's browser). Patterns use dot notation; "*" matches a single
+     * tokens, anything sensitive, since local-storage drafts are plaintext in
+     * the user's browser). Patterns use dot notation; "*" matches a single
      * segment, e.g. repeater item keys ("members.*.ssn"). Merged with the
      * excluded_fields config and the schema's password inputs.
      *
@@ -342,7 +383,7 @@ trait RecoversDrafts
     }
 
     /**
-     * State paths of the schema's password inputs — always excluded so
+     * State paths of the schema's password inputs. Always excluded so
      * credentials never persist, whatever the configuration says.
      *
      * @return array<string>
@@ -363,7 +404,7 @@ trait RecoversDrafts
     }
 
     /**
-     * The localStorage key prefix owned by the current user — anything under
+     * The localStorage key prefix owned by the current user. Anything under
      * the package prefix but outside this one belongs to another user of the
      * same browser and is pruned client-side.
      */
@@ -414,11 +455,12 @@ trait RecoversDrafts
     /**
      * Server-side stores persist pending (not yet saved) file uploads as
      * Livewire temporary upload markers. The temporary file a marker points
-     * to is short-lived — Livewire prunes its temporary upload directory
-     * independently of the draft's expiry — so markers are re-checked at
-     * recovery time: live ones are rehydrated into TemporaryUploadedFile
-     * instances, dead ones are dropped together with any upload state left
-     * empty by the removal, letting the rest of the draft recover cleanly.
+     * to is short-lived, because Livewire prunes its temporary upload
+     * directory independently of the draft's expiry, so markers are
+     * re-checked at recovery time: live ones are rehydrated into
+     * TemporaryUploadedFile instances, dead ones are dropped together with
+     * any upload state left empty by the removal, letting the rest of the
+     * draft recover cleanly.
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>

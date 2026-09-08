@@ -11,8 +11,11 @@ use Oddvalue\FilamentDraftRecovery\Facades\DraftRecovery;
 use Oddvalue\FilamentDraftRecovery\Models\RecoverableDraft;
 use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Models\Post;
 use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\Pages\CreatePost;
+use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\Pages\CreatePostWithOwnCreateHook;
 use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\Pages\CreatePostWithPageStore;
 use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\Pages\EditPost;
+use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\Pages\EditPostWithLegacySaveHook;
+use Oddvalue\FilamentDraftRecovery\Tests\Fixtures\Resources\Pages\EditPostWithOwnSaveHook;
 
 use function Pest\Livewire\livewire;
 
@@ -188,6 +191,44 @@ it('dispatches a clear event after creating in client mode', function (): void {
         ->assertDispatched('draft-recovery-clear');
 
     expect(Post::query()->where('title', 'New post')->exists())->toBeTrue();
+});
+
+it('still clears the draft when the page defines its own afterCreate hook', function (): void {
+    actingAsTestUser();
+
+    livewire(CreatePostWithOwnCreateHook::class)
+        ->fillForm(['title' => 'New post'])
+        ->call('create')
+        ->assertHasNoFormErrors()
+        ->assertSet('ownHookCalled', true)
+        ->assertDispatched('draft-recovery-clear');
+});
+
+it('still clears the draft when the page defines its own afterSave hook', function (): void {
+    actingAsTestUser();
+
+    $post = Post::query()->create(['title' => 'Hello']);
+
+    livewire(EditPostWithOwnSaveHook::class, ['record' => $post->getKey()])
+        ->fillForm(['title' => 'Updated'])
+        ->call('save')
+        ->assertHasNoFormErrors()
+        ->assertSet('ownHookCalled', true)
+        ->assertDispatched('draft-recovery-clear');
+});
+
+it('clears the draft once when the page still clears it from its own afterSave hook', function (): void {
+    actingAsTestUser();
+
+    $post = Post::query()->create(['title' => 'Hello']);
+
+    $component = livewire(EditPostWithLegacySaveHook::class, ['record' => $post->getKey()])
+        ->fillForm(['title' => 'Updated'])
+        ->call('save')
+        ->assertHasNoFormErrors()
+        ->assertDispatched('draft-recovery-clear');
+
+    expect(collect($component->effects['dispatches'])->where('name', 'draft-recovery-clear'))->toHaveCount(1);
 });
 
 describe('server mode (database store)', function (): void {
@@ -487,7 +528,7 @@ describe('server mode (laravel-drafts store)', function (): void {
         actingAsTestUser();
 
         // Default create page store falls back to the config default, which
-        // here is laravel-drafts itself — so the database store steps in.
+        // here is laravel-drafts itself, so the database store steps in.
         livewire(CreatePost::class)
             ->assertSeeHtml('\u0022mode\u0022:\u0022server\u0022');
 
